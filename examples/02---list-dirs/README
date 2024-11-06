@@ -1,0 +1,4 @@
+show a few basic functions to access an array
+show how to interact with libc functions (fwrite/qsort)
+show different trace levels
+
