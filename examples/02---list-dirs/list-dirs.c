@@ -6,7 +6,9 @@
 #define TRACE_FN  3
 
 
-/* create an array of byttes, copy the string, append handle of array to array 'm' */
+/** append cstr 's' to string list 'm'
+ * create an array of bytes, copy the string to the new array, append handle of that array to array 'm'
+ **/
 void copy_from_cstr(int m, const char *s)
 {
 	TRACE(TRACE_FN, "" );
@@ -28,7 +30,7 @@ void put_string(int d)
 {
 	TRACE(TRACE_FN, "" );
 	if( d && m_len(d) && m_width(d)==1 && CHAR(d, m_len(d)-1) == 0 ) {
-		fwrite( m_buf(d), m_width(d), m_len(d), stdout );
+		fwrite( m_buf(d), m_width(d), m_len(d)-1, stdout );
 	}
 	fputc(10, stdout );
 }
@@ -38,12 +40,19 @@ int compar(const void *a, const void *b)
 	TRACE(TRACE_FN, "" );
 	int string1 = *(int*) a;
 	int string2 = *(int*) b;
+
 	int len = m_len(string1);
-	if( len >  m_len(string2) ) len = m_len(string2);
+
+	if( len >  m_len(string2) )
+		return 1;
+	if( len <  m_len(string2) )
+		return -1;
+	
+	/* empty array or array with just a zero */
+	if( len == 0 || len == 1 ) return 0;
 
 	TRACE(TRACE_ALL, "%s with %s", m_str(string1), m_str(string2) );	      
-	
-	return memcmp( m_buf(string1), m_buf(string2), len );
+	return memcmp( m_buf(string1), m_buf(string2), len -1 );
 }
 
 

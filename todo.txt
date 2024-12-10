@@ -1,0 +1,12 @@
+Implement use-after-free protection
+
+  Problem: handles are re-used in m_create.
+  - p=m_create(...); .. m_free(p); p1 = m_create(...) : p and p1 have the same value
+  Error: m_buf(p,0) will work!
+
+  Solution:
+     reduce handles to 24bit and fill the remaining seven bits with a bit pattern
+     that changes on every call of m_free.
+     
+       
+  

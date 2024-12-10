@@ -520,13 +520,10 @@ int m_free(int h)
 {
   if( !ML || h < 0 ) ERR("Wrongs Args ML=%p h=%d", ML,h);
   if( !h ) return 0;
-  lst_t *l = (lst_t*) lst( ML, h );
-  if( *l == NULL ) ERR("List %d starts at ZERO", h);
+  lst_t *l = _get_list(h);
   free(*l);
   *l=0;
-
   lst_put( &FR, &h );
-
   return 0;
 }
 
@@ -1010,56 +1007,6 @@ void m_free_strings(int list, int CLEAR_ONLY )
 }
 
 /**
- * @brief Splits the string `s` at each occurrence of the character `c` and copies the resulting substrings into the string list `m`.
- *
- * - An empty string results in an entry with a string of length zero.
- * - A string containing only the separator results in a string list with two entries, both empty.
- * - If `m` is set to 0, a new string list is created. Otherwise, the existing list is cleared and used.
- * - If `remove_wspace` is non-zero, leading and trailing whitespace characters in the resulting substrings are removed.
- *
- * @param m The string list to which the substrings are copied. If set to 0, a new list is created.
- * @param s The input string to be split.
- * @param c The character used as the delimiter for splitting the string.
- * @param remove_wspace Flag to indicate whether leading and trailing whitespace should be removed from the substrings.
- * @return The generated string list.
- */
-int m_split(int m, const char *s, int c, int remove_wspace)
-{
-  int p=0,
-    start=0,
-    end;
-  char *szTemp;
-
-  if( m ) m_free_strings(m,1); else m=m_create(10,sizeof(char*));
-
-  for(;;) {
-
-    // leading white-space
-    while( isspace(s[p]) && s[p]!=c ) p++;
-    start=p;
-
-    // delimeter
-    while( s[p] && s[p] != c ) p++;
-
-    //  trailing whitespace before delimeter, zero - length: end < start
-    end=p;
-    while( end>=start && isspace( s[--end] ) );
-
-    if( end >= start )
-      {
-	szTemp= strndup( s+start, end-start+1 );
-      }
-    else
-      szTemp = strdup("");
-    m_put( m, &szTemp );
-
-    if( s[p] ) p++; else break;
-  }
-
-  return m;
-}
-
-/**
  * @brief Splits the string `s` at each occurrence of the character `c` and copies the handles to the resulting substrings into the array list `m`.
  * 
  *
@@ -1109,9 +1056,6 @@ int s_split(int m, const char *s, int c, int remove_wspace)
 
   return m;
 }
-
-
-
 
 
 #include <regex.h>
@@ -2139,43 +2083,21 @@ int mstrcmp(int m,int p, const char *s)
 
 int mstr_to_long(int buf, int *p, long int *ret_val)
 {
-    int sign=0;
-    int ch;
-    long int val = 0;
-    int pp = 0;
-    if( !p ) p=&pp;
 
-    if( buf <= 0 || *p < 0 || *p >= m_len(buf) ) return -1;
+	int pp = 0;
+	if( !p ) p=&pp;	
+	if( buf <= 0 || *p < 0 || *p >= m_len(buf) ) return -1;
 
-    while( isspace(ch=CHAR(buf,*p)) ) {
-        (*p)++;
-        if( *p >= m_len(buf) ) return -1;
-    }
+	/* append zero but keep array length */
+	if( CHAR(buf, m_len(buf)-1) != 0 ) {
+		m_putc(buf,0);
+		m_setlen(buf,m_len(buf)-1 );
+	}
 
-    if(! isdigit(ch) ) {
-        if( ch == '-' )  { sign = -1; (*p)++; }
-        else if( ch == '+' )  (*p)++;
-        else return -1;
-        if( *p >= m_len(buf) ) return -1;
-        ch=CHAR(buf,*p);
-        if(! isdigit(ch) ) return -1;
-    }
-    ch -= '0';
-
-    while(1) {
-
-        val += ch;
-        (*p)++;
-
-        if( *p >= m_len(buf) ) break;
-        ch=CHAR(buf,*p);
-        if(! isdigit(ch) ) break;
-        ch -='0';
-        if( val > LONG_MAX / 10 ) return -2 + sign;
-        val *= 10;
-        if( val > (LONG_MAX - ch) ) return -2 + sign;
-    }
-
-    *ret_val = sign ?  -val : val;
-    return 0;
+	errno = 0;
+	char *endptr;
+	char *start   = mls(buf,*p);
+	*ret_val = strtol( start, &endptr, 0 );
+	if( *endptr || errno ) return -1;
+	return 0;
 }
