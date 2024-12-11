@@ -82,8 +82,9 @@ extern int trace_level;
 // ********************************************
 
 typedef struct ls_st {
-    int w, l, max;
-    char d[0];
+	int w, l, max;
+	char uaf_protection;
+	char d[0];
 } *lst_t;
 
 void* lst( lst_t l, int i )   __attribute__ ((pure));

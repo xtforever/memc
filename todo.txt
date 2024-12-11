@@ -11,3 +11,7 @@ Implement use-after-free protection
      on access use 24bit to find the lst_t struct, compare the 7bit-pattern with
      the pattern stored inside the lst_t structure, exit if not match.
 
+     - every 128th free/alloc cycle a handle is reused
+     - only 16million active arrays
+
+
