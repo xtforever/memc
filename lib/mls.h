@@ -285,7 +285,7 @@ int s_app(int m, ...) __attribute__ ((__sentinel__(0)));
     /* append string |s| to |m| */
 int s_app1(int m, char *s);
   /* write sprintf(...) string to array m at pos p */
-int vas_printf(int m, int p, char *format, va_list argptr );
+int vas_printf(int m, int p, const char *format, va_list argptr );
 int s_printf(int m, int p, char *format, ...);
 int s_index( int buf,int p, int ch );
 int mstrcmp(int m,int p, const char *s);

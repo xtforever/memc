@@ -1824,7 +1824,7 @@ int s_app(int m, ...)
     return m;
 }
 
-int vas_printf(int m, int p, char *format, va_list ap )
+int vas_printf(int m, int p, const char *format, va_list ap )
 {
     int len;
 	va_list copy;
