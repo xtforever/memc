@@ -1344,8 +1344,8 @@ int m_cmp( int a, int b )
 {
   int l1,l2;
   l1=m_len(a); l2=m_len(b);
-  int len = Max( l2, l1 );
-  return strncmp( (char*)mls(a,0), (char*)mls(b,0), len );
+  l1 = Min(l1,l2);
+  return strncmp( (char*)mls(a,0), (char*)mls(b,0), l1 );
 }
 
 
@@ -1930,7 +1930,7 @@ int m_lfind(const void *key, int list, int (*compar)(const void *, const void *)
 /** @brief insert *data into sorted list buf
  * @returns: position of new element, or ret=-pos-1 (ret<0) if elem. exists 
  */
-int m_binsert( int buf, const void *data, int (*cmpf) (const void *a,const void *b ), int with_duplicates )
+int m_binsert( int buf, const void *data, int (*cmpf) (const void *data,const void *buf_elem ), int with_duplicates )
 {
     int left = 0;
     int right = m_len(buf)+1;

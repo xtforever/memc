@@ -33,7 +33,7 @@ void m_concat(int a, int b);
 int m_split_list( const char *s, const char *delm );
 
 int leftstr(int buf, int p, const char *s, int ch);
-
+int cmp_mstr(const void *a, const void *b);
 int cmp_int( const void *a0, const void *b0 );
 int lookup_int(int m, int key);
 int m_slice(int dest, int offs, int m, int a, int b );
@@ -49,6 +49,7 @@ int s_trim(int m);
 int s_lower(int m);
 int s_upper(int m);
 int s_msplit(int dest, int src, int pattern );
+int s_implode(int dest, int srcs, int seperator );
 
 void m_map( int m, int (*fn) ( int m, int p, void *ctx ), void *ctx  );
 

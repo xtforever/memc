@@ -548,7 +548,7 @@ int s_msplit(int dest, int src, int pattern )
 		m_puti( dest, substr );
 		offs = pos + pattern_len;
 	}
-	if( offs < m_len(src) ) {
+	if( offs < m_len(src) -1 ) {
 		m_puti( dest, m_slice( 0,0, src, offs, -1 ) );
 	}
 		
@@ -614,6 +614,22 @@ int s_strdup_c(const char *s)
 }
 
 
+int s_implode(int dest, int srcs, int seperator )
+{
+	if(dest==0) dest=m_create(10,1); else m_clear(dest);
+	if( srcs <= 0 || m_len(srcs) == 0 ||  s_isempty(seperator) ) goto leave;
+
+	int p,*d;
+	m_foreach( srcs, p, d ) {
+		if( p ) {
+			m_slice( dest, m_len(dest), seperator, 0, -2 );	
+		}		
+		m_slice( dest, m_len(dest), *d, 0, -2 );		
+	}
+leave:
+	m_putc(dest,0);
+	return dest;	
+}
 
 
 
@@ -633,7 +649,7 @@ void conststr_init(void)
   }
 }
 
-static int mscmp(const void *a, const void *b)
+int cmp_mstr(const void *a, const void *b)
 {
 	int k1 = *(const int *)a;
 	int k2 = *(const int *)b;
@@ -653,7 +669,7 @@ static int mscmpc( const void *a,const void *b )
 int conststr_lookup(int s)
 {
   if( s_empty(s) ) return CS_ZERO;
-  int p = m_binsert( CONSTSTR_DATA, &s, mscmp, 0 );
+  int p = m_binsert( CONSTSTR_DATA, &s, cmp_mstr, 0 );
   if( p < 0 ) { // schon vorhanden
     return INT( CONSTSTR_DATA, (-p)-1 );
   }
@@ -689,7 +705,7 @@ int cs_printf( const char *format, ... )
 	va_start(ap,format);
 	int m = vas_printf( 0,0, format, ap );
 	va_end(ap);
-	int p = m_binsert( CONSTSTR_DATA, &m, mscmp, 0 );
+	int p = m_binsert( CONSTSTR_DATA, &m, cmp_mstr, 0 );
 	if( p < 0 ) { // schon vorhanden
 		m_free(m);
 		return INT( CONSTSTR_DATA, (-p)-1 );
