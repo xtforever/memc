@@ -25,6 +25,7 @@ void demonstrate_string_sort()
 	printf("\n%s\n", __FUNCTION__ );
 	printf("Unsorted list:\n");
 	m_foreach( dest, p, d ) {
+		s_lower(*d);
 		printf("Resulting string: '%s' (id=%d)\n", m_str(*d), *d & 0xffffff );
 	}
 
@@ -42,7 +43,8 @@ void demonstrate_string_sort()
 
 
 	
-void demonstrate_string_split() {
+void demonstrate_string_split()
+{
 	int src = s_cstr("Hello World, there is another World to visit");
 	int pattern = s_cstr("World");
 	int dest = 0; // buffer alloced by s_msplit for a list of strings 
@@ -62,7 +64,7 @@ void demonstrate_string_split() {
 	printf("Original string: '%s' (id=%d)\n", m_str(src), src  & 0xffffff );
 	printf("Seperator: '%s'\n", m_str(pattern));
 	printf("Merged string: '%s' (id=%d) \n", m_str(dest2), dest2  & 0xffffff  );
-	int const_merged = s_mstr(dest2);
+	int const_merged = s_mstr(dest2); /* convert string to constant string */
 	printf("Merged string to constant: '%s' (id=%d)\n", m_str(const_merged), const_merged & 0xffffff  );
 	
 	
@@ -75,7 +77,7 @@ void demonstrate_string_copy() {
 	int src = s_cstr("Hello World");
 	int dest = 0; // buffer alloced by s_slice
 	int offs = 0; // target start at first char
-	int start = 2; // start after 2nd byte
+	int start = 0; // start at first byte
 	int end = -1;  // -1 is the last character, -2 is the char before the last char
 	
 	dest = s_slice( dest, offs, src, start, end );
@@ -139,4 +141,4 @@ int main() {
   m_destruct();
   return 0;
 }
-// Function to demonstrate string replacement
+

@@ -656,6 +656,19 @@ int cmp_mstr(const void *a, const void *b)
 	TRACE(1,"cmp %s %s", CHARP(k1), CHARP(k2));
 	return m_cmp(k1,k2);
 }
+
+/* treat shorter strings as beeing lower than longer strings */
+int cmp_mstr_fast(const void *a, const void *b)
+{
+	int k1 = *(const int *)a;
+	int k2 = *(const int *)b;
+	TRACE(1,"cmp %s %s", CHARP(k1), CHARP(k2));
+	if( m_len(k1) < m_len(k2) ) return -1;
+	if( m_len(k1) > m_len(k2) ) return 1;	
+	return m_cmp(k1,k2);
+}
+
+
 static int mscmpc( const void *a,const void *b )
 {
   const char * const *s = a;
@@ -669,7 +682,7 @@ static int mscmpc( const void *a,const void *b )
 int conststr_lookup(int s)
 {
   if( s_empty(s) ) return CS_ZERO;
-  int p = m_binsert( CONSTSTR_DATA, &s, cmp_mstr, 0 );
+  int p = m_binsert( CONSTSTR_DATA, &s, cmp_mstr_fast, 0 );
   if( p < 0 ) { // schon vorhanden
     return INT( CONSTSTR_DATA, (-p)-1 );
   }
