@@ -22,9 +22,12 @@ void demonstrate_string_length() {
 // Function to demonstrate string/array copy
 void demonstrate_string_copy() {
 	int src = s_cstr("Hello World");
-	int dest = 0;
-
-	dest = m_slice( dest, 0, src, 0, -1 );
+	int dest = 0; // buffer alloced by s_slice
+	int offs = 0; // target start at first char
+	int start = 2; // start after 2nd byte
+	int end = -1;  // -1 is the last character, -2 is the char before the last char
+	
+	dest = s_slice( dest, offs, src, start, end );
 	printf("Original string id: %d\n", src );
 	printf("Resulting string: %s (id=%d)\n", m_str(dest), dest );
 	m_free(dest);
@@ -32,26 +35,29 @@ void demonstrate_string_copy() {
 
 // Function to demonstrate string search
 void demonstrate_string_search() {
-    // TODO: Implement string search using functions from m_tool.c
-    // Example: search for a substring within a string and print the result
+
+	
+	
+
+	
 }
 
 
 void demonstrate_string_replacement() {
 
-  int src = s_cstr("Hello World");
-  int pattern = s_cstr("World");
-  int replace = s_cstr("Universe");
-  int dest = 0;  // buffer will be allocated by s_replace
-  int count = 1; // Number of replacements to perform
+	int src = s_cstr("Hello World");
+	int pattern = s_cstr("World");
+	int replace = s_cstr("Universe");
+	int dest = 0;  // buffer will be allocated by s_replace
+	int count = 1; // Number of replacements to perform
 
-  dest = s_replace(dest, src, pattern, replace, count);
-
-  printf("Original string: %s\n", m_str(src));
-  printf("Pattern to replace: %s\n", m_str(pattern));
-  printf("Replacement string: %s\n", m_str( replace));
-  printf("Resulting string: %s\n", m_str(dest));
-  
+	dest = s_replace(dest, src, pattern, replace, count);
+	
+	printf("Original string: %s (id=%d)\n", m_str(src), src);
+	printf("Pattern to replace: %s\n", m_str(pattern));
+	printf("Replacement string: %s\n", m_str( replace));
+	printf("Resulting string: %s\n", m_str(dest));
+	m_free(dest);
 }
 
 
