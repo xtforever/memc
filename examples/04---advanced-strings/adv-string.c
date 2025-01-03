@@ -26,7 +26,7 @@ void demonstrate_string_copy() {
 
 	dest = m_slice( dest, 0, src, 0, -1 );
 	printf("Original string id: %d\n", src );
-	printf("Resulting string: %s (id=%d)\n", m_str(dest) );
+	printf("Resulting string: %s (id=%d)\n", m_str(dest), dest );
 	m_free(dest);
 }
 
