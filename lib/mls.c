@@ -366,8 +366,13 @@ int lst_read( lst_t l, int p, void **data, int n)
 static inline lst_t* _get_list(int m)
 {
   if(ML==0 || m < 1 ) ERR("Not initialized");
-  lst_t *l = (lst_t*) lst( ML, m );
+  lst_t *l = (lst_t*) lst( ML, m & 0xffffff );
   if( *l == NULL ) ERR("List %d not allocated",m);
+  if( (*l)->uaf_protection != (m >> 24) ) {
+	  ERR("uaf protection pattern does not match, expected:%d, got:%d",
+	      (*l)->uaf_protection, (m >> 24) );
+  }
+					      
   return l;
 }
 
@@ -446,6 +451,7 @@ void m_destruct()
 
 
 
+static int  UAF_PROTECTION = 0;
 
 int  m_create(int max, int w)
 {
@@ -453,60 +459,19 @@ int  m_create(int max, int w)
   lst_t lp;
   if( ! ML || max <= 0 || w <= 0 ) ERR("Wrong args");
   lp = lst_create(max,w);
-
-#if 0
-  lst_t *t;
-  for(i=ML->l-1;i>0; i--) {
-    t = (lst_t*) lst(ML,i); // pointer to memory for lst_t
-    ASSERT(t); // should always be a valid ptr
-    if( *t == NULL ) {
-      *t =  lp;
-      return i;
-    }
-  }
-
-#else
-
-#if 0
-  int stopper;
-  /*
-    suche vom letzten element der liste ML rückwärts zum zweiten
-    nach einem NULL-Ptr.
-    sonst anhängen
-
-    suche nur die obersten 100 der liste ab
-  */
-  i = ML->l -1;
-  t = ((lst_t*) ML->d) + i;
-
-  if( i > 1000 )
-    stopper = i-100;
-  else
-    stopper = ML->l * 0.9;
-
-  while( i > stopper ) {
-    if( *t == NULL ) {
-      *t =  lp;
-      return i;
-    }
-    t--;
-    i--;
-  }
-
-#else
+  lp->uaf_protection = UAF_PROTECTION;
 
   // falls FR->l > 0 nehme freie plätze aus FR
-  if( FR->l > 0 ) {
-    i = *(int *) lst( FR, FR->l-1 );
-    FR->l--;
-    *(lst_t*) lst(ML, i) = lp;
-    return i;
+  if( FR->l > 0 ) {		/* re-use old handles, common case */
+	  i = *(int *) lst( FR, FR->l -1);
+	  FR->l--;
+	  *(lst_t*) lst(ML, i) = lp;
+  } else {			/* create new handle */
+	  i= lst_put( &ML, &lp );
+	  if( i >= 0xffffff ) ERR("too many arrays allocated");
   }
 
-#endif
-#endif
-
-  i= lst_put( &ML, &lp );
+  i = (UAF_PROTECTION << 24) | i;  
   return i;
 }
 
@@ -521,6 +486,13 @@ int m_free(int h)
   if( !ML || h < 0 ) ERR("Wrongs Args ML=%p h=%d", ML,h);
   if( !h ) return 0;
   lst_t *l = _get_list(h);
+  /* uaf protection */
+  {
+	  h &= 0xffffff;	/* do not store uaf protection */
+				/* pattern as part of handle to be reused */
+	  UAF_PROTECTION = (UAF_PROTECTION+1) & 0x7f;
+  }
+  
   free(*l);
   *l=0;
   lst_put( &FR, &h );
@@ -691,7 +663,9 @@ static void _mlsdb_caller(const char *me,
 {
   debi.me = me;
   debi.ln = ln; debi.fn = fn; debi.fun = fun;
-  debi.args=args; debi.handle = handle; debi.index=index;
+  debi.args=args;
+  debi.handle = handle;
+  debi.index=index;
   debi.data=data;
 }
 
@@ -704,6 +678,9 @@ static void perr( char *format, ... )
     va_end(argptr);
 }
 
+
+
+
 //!X!
 // check for handle error
 // R: 0 if handle seems correct
@@ -711,13 +688,26 @@ static int _mlsdb_check_handle()
 {
   lst_t *lp;
   lst_owner *o;
-  int h = debi.handle;
-  perr("Checking Handle %d", h );
-
+  int orig = debi.handle;
+  int h = orig & 0xffffff;
+  perr("Checking Handle %d, uaf protection: %d", h, orig >> 24 );
+  
   if( h < 1 || h > m_len(DEB) ) {
     perr( "Handle out of range (0 < %d < %d)",
 	  h, m_len(DEB)+1 );
     return -1;
+  }
+
+  lp = (lst_t*) lst( ML, h );
+  if( *lp == NULL ) {
+	  perr("List base address for handle %d is not allocated",h);
+	  return -1;
+  }
+
+  if( (*lp)->uaf_protection != (orig >> 24) ) {
+	  perr("uaf protection pattern does not match, expected:%d, got:%d",
+	      (*lp)->uaf_protection, (orig >> 24) );
+	  return -1;
   }
 
   o = (lst_owner*) mls( DEB, h-1 );
@@ -738,11 +728,13 @@ static int _mlsdb_check_handle()
   perr("Array was created by %s in %s:%d",
        o->fun, o->fn, o->ln );
 
-  lp = _get_list(h);
+  
+  
   perr("Base Address Structure: %p\n"
        "Base Address Data (d):%p\nElem.Width (w):%d\n"
        "Buffer size(max):%d\nUsed Size(l):%d",
        *lp, (*lp)->d, (*lp)->w,(*lp)->max,(*lp)->l );
+  
   return 0;
 }
 static int _mlsdb_check_index()
@@ -766,7 +758,10 @@ void exit_error()
 {
   if(! debi.me ) return;
 
-  perr( "ERROR in funtion: '%s'. Called by '%s:%d' in '%s'",
+  perr( "\n"
+	"POST MORTEM ANALYSER STARTED\n"
+	"****************************\n"
+	"ERROR in funtion: '%s'. Called by '%s:%d' in '%s'",
 	  debi.me, debi.fun, debi.ln, debi.fn );
 
   if( !ML ) {
@@ -817,16 +812,19 @@ int _m_create(int ln, const char *fn, const char *fun,
 		int n, int w)
 {
   lst_owner *lo;
-  int len, m;
+  int len, m, m_uaf;
   _mlsdb_caller(__FUNCTION__, ln,fn,fun,0,0,0,0 );
-  m = m_create(n,w);
+  m_uaf = m_create(n,w);
+  
+  m = m_uaf & 0xffffff; /* uaf protection */
   len = m_len(DEB);
   if( m > len ) m_new( DEB, m-len );
   lo = (lst_owner*) mls( DEB, m-1 );
+
   lo->ln = ln; lo->fn = fn; lo->fun = fun;
   lo->allocated = 42;
   TRACE(1,"NEW LIST %d allocated by %s:%d in %s", m, fun, ln, fn );
-  return m;
+  return m_uaf;
 }
 
 
@@ -836,7 +834,10 @@ int _m_free(int ln, const char *fn, const char *fun,
   if( !m ) return 0;
   _mlsdb_caller(__FUNCTION__, ln,fn,fun,1,m,0,0 );
   m_free(m);
+
+  m &=0xffffff; /* uaf protection */
   lst_owner *o = (lst_owner *)mls( DEB, m-1 );
+
   o->ln = -ln;
   o->fun = fun; o->fn = fn;
   TRACE(1,"Free List %d", m );
