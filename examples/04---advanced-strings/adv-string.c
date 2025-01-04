@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include "m_tool.h" // Assuming this is the header file for m_tool.c
+#include <printf.h>
+
 
 // Function to demonstrate string concatenation
 void demonstrate_string_concatenation() {
@@ -115,12 +117,62 @@ void demonstrate_string_replacement() {
 
 	dest = s_replace(dest, src, pattern, replace, count);
 
-	printf("%s\n", __FUNCTION__ );
+	printf("%s\n", __PRETTY_FUNCTION__ );
 	printf("Original string: %s (id=%d)\n", m_str(src), src);
 	printf("Pattern to replace: %s\n", m_str(pattern));
 	printf("Replacement string: %s\n", m_str( replace));
 	printf("Resulting string: %s\n", m_str(dest));
 	m_free(dest);
+}
+
+
+
+// Custom printf handler function for the 'M' specifier
+static int mls_printf_handler(FILE *stream, const struct printf_info *info, const void *const *args) {
+    // Extract the argument as a "mls" type
+    const int p = *((const int *)args[0]);
+
+    const char *s = mls(p,0);
+    char *o, out[200];
+    o=out;
+    *o++='%';
+    if( info->left ) *o++ = '-';
+
+    if( info->width > 0 ) {
+	    o+= sprintf(o, "%u", info->width );
+    }
+    if( info->prec > 0 ) {
+	    o+= sprintf(o, ".%u", info->prec );
+    }
+    *o++='s';
+    *o++=0;
+    
+    // Print the point structure to the stream
+    return fprintf(stream, out, s );
+}
+
+// Custom argument size handler for the 'M' specifier
+static int mls_printf_arginfo(const struct printf_info *info, size_t n, int *argtypes, int *size) {
+    if (n > 0) {
+        argtypes[0] = PA_INT;  // Expecting a pointer to the custom type
+    }
+    return 1;
+}
+
+void demonstrate_printf() {
+	printf("%s\n", __FUNCTION__ );
+	// Register the custom printf specifier 'M'
+	if (register_printf_specifier('M', mls_printf_handler, mls_printf_arginfo) != 0) {
+		fprintf(stderr, "Failed to register printf specifier 'M'\n");
+		return;
+	}
+
+    	int src = s_cstr("Hello World");
+	printf("String: '%-14.5M'\n", src );
+	printf("String: '%-14.5s'\n", m_str(src) );
+
+	printf("String: '%M'\n", src );
+	printf("String: '%s'\n", m_str(src) );
 }
 
 
@@ -137,6 +189,7 @@ int main() {
   demonstrate_string_copy();
   demonstrate_string_search();
   demonstrate_string_sort();
+  demonstrate_printf();
   conststr_free();
   m_destruct();
   return 0;

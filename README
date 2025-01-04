@@ -8,12 +8,12 @@ To facilitate debugging, mls.h includes a suite of macros. A brief demonstration
 
 One of the key advantages of this approach is the use of integer handles as references to arbitrary arrays. This abstraction allows any data structure to be represented as an array of integers, providing a  flexible framework for handling even complex data structures. 
 
-The m_put(M, ptr) function is one of the most powerful tools in this implementation. It can be used for any array type, automatically resizing as needed while preserving the handle, enabling seamless data appending. When data structures are treated as arrays of integers, m_put becomes an essential function in the workflow.
+The m_put(M, ptr) function is one of the most often used tools in this implementation. 
+It can be used for any array type, automatically resizing as needed while preserving the handle, 
 
 Since the handle remains constant until the array is explicitly freed, it can be safely used throughout the program without needing re-assignment. This consistency also allows functions to accept arrays as arguments more flexibly. For example, the well known 'ssize_t getline(char **lineptr, size_t *n, FILE *stream)' function, could instead be adapted to use a handle, as in 'int getline(int my_array, FILE *stream)'. 
  
 An additional advantage is that handles are always positive integers. This allows functions to return the handle itself when successful or, if needed, a negative value to indicate an error code, enabling quick and easy error handling.
-
 
 The source code for memory management functions is located in lib/mls.c.
 

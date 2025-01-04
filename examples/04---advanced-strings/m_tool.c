@@ -622,7 +622,7 @@ int s_implode(int dest, int srcs, int seperator )
 	int p,*d;
 	m_foreach( srcs, p, d ) {
 		if( p ) {
-			m_slice( dest, m_len(dest), seperator, 0, -2 );	
+			m_slice( dest, m_len(dest), seperator, 0, -2 ); 	
 		}		
 		m_slice( dest, m_len(dest), *d, 0, -2 );		
 	}
@@ -739,6 +739,7 @@ void conststr_stats(void)
 	}
 	TRACE(4,"Memory: %d", len );
 }
+
 
 
 
