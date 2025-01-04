@@ -6,6 +6,28 @@
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
 
 void
+demonstrate_string_comparison()
+{
+	printf("\n%s\n", __FUNCTION__);
+
+	int res = 0;
+	int hs1 = s_cstr("World");
+	int hs2 = s_cstr("Hello");
+	const char *s3 = "Kilo";
+
+	res = mstrcmp(hs1, 0, s3);
+	printf("compare mstr %M with cstring %s: result=%d\n", hs1, s3, res);
+
+	res = m_cmp(hs2, hs1);
+	printf("compare mstr %M with mstr %M: result=%d\n", hs2, hs1, res);
+
+	// if using const-string you have the same handle for the same string
+	int hs4 = cs_printf("%s", "World");
+	printf("compare mstr %M with mstr %M: result=%s\n", hs1, hs4,
+	       hs1 == hs4 ? "true":"false");
+}
+
+void
 demonstrate_string_concatenation()
 {
 	printf("\n%s\n", __FUNCTION__);
@@ -30,14 +52,6 @@ demonstrate_string_concatenation()
 	m_free(s1);
 	m_free(s2);
 	m_free(s3);
-}
-
-// Function to demonstrate string comparison
-void
-demonstrate_string_comparison()
-{
-	// TODO: Implement string comparison using functions from m_tool.c
-	// Example: compare two strings and print whether they are equal or not
 }
 
 void
@@ -175,7 +189,7 @@ mls_printf_handler(FILE *stream, const struct printf_info *info,
 	*o++ = '%';
 	if (info->left) {
 		*o++ = '-';
-	}	
+	}
 	if (info->width > 0) {
 		o += sprintf(o, "%u", info->width);
 	}
@@ -195,7 +209,7 @@ mls_printf_arginfo(const struct printf_info *info, size_t n, int *argtypes,
                    int *size)
 {
 	if (n > 0) {
-		argtypes[0] = PA_INT; // Expecting 'int' 
+		argtypes[0] = PA_INT; // Expecting 'int'
 	}
 	return 1;
 }

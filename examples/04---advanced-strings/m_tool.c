@@ -705,13 +705,13 @@ int conststr_lookup_c(const char *s)
 }
 
 
-/** @brief use vaprintf to create a a const-string that you do not need to free.
-    use our internal buffer('b') to create a string.
-    lookup this string.
-    if found, return handle to the found string,
-    otherwise return 'b', append 'b' and
-    alloc a new internal buffer.
-*/
+/**
+ * @brief Creates a constant string using vas_printf that does not need deallocation.
+ *        Uses vas_printf to generate a temporary string.
+ *        Searches for this string in the global storage:
+ *        - If found, returns a handle to the existing string and frees the temporary string.
+ *        - Otherwise, inserts the temporary string into the global storage and returns it.
+ */
 int cs_printf( const char *format, ... )
 {
 	va_list ap;
