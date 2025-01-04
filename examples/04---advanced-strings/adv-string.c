@@ -1,113 +1,149 @@
-#include <stdio.h>
 #include "m_tool.h" // Assuming this is the header file for m_tool.c
 #include <printf.h>
+#include <stdio.h>
 
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
 
-// Function to demonstrate string concatenation
-void demonstrate_string_concatenation() {
-    // TODO: Implement string concatenation using functions from m_tool.c
-    // Example: concatenate two strings and print the result
+void
+demonstrate_string_concatenation()
+{
+	printf("\n%s\n", __FUNCTION__);
+	int s1 = 0;
+	int s2 = 0;
+	int s3 = 0;
+	s1 = s_app(0, "Hello ", "World, ", NULL);
+	s_app(s1, "there ", "is ", "another ", "World ", "to ", "visit", NULL);
+	printf("String s1: '%M'\n", s1);
+
+	//          using s_printf and custom specifier to concat a string
+	s2 = s_printf(0, 0, "You said: <%M>", s1);
+	printf("String s2: '%M'\n", s2);
+
+	//          using m_slice to copy first 6 chars to new string
+	s3 = m_slice(0, 0, s1, 0, 5);
+	//          using m_slice to append a part of string
+	m_slice(s3, m_len(s3), s2, 16, 20);
+	m_putc(s3, 0);
+	printf("String s3: '%M'\n", s3);
+
+	m_free(s1);
+	m_free(s2);
+	m_free(s3);
 }
 
 // Function to demonstrate string comparison
-void demonstrate_string_comparison() {
-    // TODO: Implement string comparison using functions from m_tool.c
-    // Example: compare two strings and print whether they are equal or not
+void
+demonstrate_string_comparison()
+{
+	// TODO: Implement string comparison using functions from m_tool.c
+	// Example: compare two strings and print whether they are equal or not
 }
 
-void demonstrate_string_sort()
+void
+demonstrate_string_sort()
 {
 	int src = s_cstr("Hello World, there is another World to visit");
 	int pattern = s_cstr(" ");
 	int dest = 0;
-	int p,*d;
-	
-	dest = s_msplit( dest, src, pattern );
+	int p, *d;
 
-	printf("\n%s\n", __FUNCTION__ );
+	dest = s_msplit(dest, src, pattern);
+
+	printf("\n%s\n", __FUNCTION__);
 	printf("Unsorted list:\n");
-	m_foreach( dest, p, d ) {
+	m_foreach(dest, p, d)
+	{
 		s_lower(*d);
-		printf("Resulting string: '%s' (id=%d)\n", m_str(*d), *d & 0xffffff );
+		printf("Resulting string: '%s' (id=%d)\n", m_str(*d),
+		       *d & 0xffffff);
 	}
 
-	
-	m_qsort( dest, cmp_mstr );
+	m_qsort(dest, cmp_mstr);
 	printf("Sorted list:\n");
 
-	m_foreach( dest, p, d ) {
-		printf("Resulting string: '%s' (id=%d)\n", m_str(*d), *d & 0xffffff );
+	m_foreach(dest, p, d)
+	{
+		printf("Resulting string: '%s' (id=%d)\n", m_str(*d),
+		       *d & 0xffffff);
 	}
-	
-	m_free_list( dest );
+
+	m_free_list(dest);
 }
 
-
-
-	
-void demonstrate_string_split()
+void
+demonstrate_string_split()
 {
 	int src = s_cstr("Hello World, there is another World to visit");
 	int pattern = s_cstr("World");
-	int dest = 0; // buffer alloced by s_msplit for a list of strings 
+	int dest = 0; // buffer alloced by s_msplit for a list of strings
 
-	dest = s_msplit( dest, src, pattern );
+	dest = s_msplit(dest, src, pattern);
 
-	printf("\n%s\n", __FUNCTION__ );
-	printf("Original string: '%s' (id=%d)\n", m_str(src), src  & 0xffffff );
+	printf("\n%s\n", __FUNCTION__);
+	printf("Original string: '%s' (id=%d)\n", m_str(src), src & 0xffffff);
 	printf("Pattern to split: '%s'\n", m_str(pattern));
 	int p, *d;
-	m_foreach( dest, p, d ) {
-		printf("Resulting string: '%s' (id=%d)\n", m_str(*d), *d & 0xffffff );
+	m_foreach(dest, p, d)
+	{
+		printf("Resulting string: '%s' (id=%d)\n", m_str(*d),
+		       *d & 0xffffff);
 	}
 
-
-	int dest2 = s_implode(0, dest, pattern );
-	printf("Original string: '%s' (id=%d)\n", m_str(src), src  & 0xffffff );
+	int dest2 = s_implode(0, dest, pattern);
+	printf("Original string: '%s' (id=%d)\n", m_str(src), src & 0xffffff);
 	printf("Seperator: '%s'\n", m_str(pattern));
-	printf("Merged string: '%s' (id=%d) \n", m_str(dest2), dest2  & 0xffffff  );
-	int const_merged = s_mstr(dest2); /* convert string to constant string */
-	printf("Merged string to constant: '%s' (id=%d)\n", m_str(const_merged), const_merged & 0xffffff  );
-	
-	
-	m_free_list( dest );
-	m_free( dest2 );
+	printf("Merged string: '%s' (id=%d) \n", m_str(dest2),
+	       dest2 & 0xffffff);
+	int const_merged
+	    = s_mstr(dest2); /* convert string to constant string */
+	printf("Merged string to constant: '%s' (id=%d)\n", m_str(const_merged),
+	       const_merged & 0xffffff);
+
+	m_free_list(dest);
+	m_free(dest2);
 }
 
 // Function to demonstrate string/array copy
-void demonstrate_string_copy() {
+void
+demonstrate_string_copy()
+{
 	int src = s_cstr("Hello World");
-	int dest = 0; // buffer alloced by s_slice
-	int offs = 0; // target start at first char
+	int dest = 0;  // buffer alloced by s_slice
+	int offs = 0;  // target start at first char
 	int start = 0; // start at first byte
-	int end = -1;  // -1 is the last character, -2 is the char before the last char
-	
-	dest = s_slice( dest, offs, src, start, end );
+	int end = -1;  // -1 is the last character, -2 is the char before the
+	               // last char
 
-	printf("\n%s\n", __FUNCTION__ );
+	dest = s_slice(dest, offs, src, start, end);
+
+	printf("\n%s\n", __FUNCTION__);
 	printf("Original string: %s (id=%d)\n", m_str(src), src);
-	printf("Resulting string: %s (id=%d)\n", m_str(dest), dest & 0xffffff );
+	printf("Resulting string: %s (id=%d)\n", m_str(dest), dest & 0xffffff);
 	m_free(dest);
 }
 
 // Function to demonstrate string search
-void demonstrate_string_search() {
+void
+demonstrate_string_search()
+{
 
 	int src = s_cstr("Hello World, there is another World");
 	int pattern = s_cstr("World");
 	int offs = 0;
 
-	printf("\n%s\n", __FUNCTION__ );
-	printf("Original string: %s (id=%d)\n", m_str(src), src & 0xffffff );
+	printf("\n%s\n", __FUNCTION__);
+	printf("Original string: %s (id=%d)\n", m_str(src), src & 0xffffff);
 	printf("Pattern to search: %s\n", m_str(pattern));
-	while(   (offs = s_strstr( src, offs, pattern) ) != -1 ) {
-		printf( "found at %d\n", offs );
+	while ((offs = s_strstr(src, offs, pattern)) != -1) {
+		printf("found at %d\n", offs);
 		offs += s_strlen(pattern);
 	}
 }
 
-
-void demonstrate_string_replacement() {
+void
+demonstrate_string_replacement()
+{
 
 	int src = s_cstr("Hello World");
 	int pattern = s_cstr("World");
@@ -117,81 +153,91 @@ void demonstrate_string_replacement() {
 
 	dest = s_replace(dest, src, pattern, replace, count);
 
-	printf("%s\n", __PRETTY_FUNCTION__ );
+	printf("%s\n", __PRETTY_FUNCTION__);
 	printf("Original string: %s (id=%d)\n", m_str(src), src);
 	printf("Pattern to replace: %s\n", m_str(pattern));
-	printf("Replacement string: %s\n", m_str( replace));
+	printf("Replacement string: %s\n", m_str(replace));
 	printf("Resulting string: %s\n", m_str(dest));
 	m_free(dest);
 }
 
-
-
 // Custom printf handler function for the 'M' specifier
-static int mls_printf_handler(FILE *stream, const struct printf_info *info, const void *const *args) {
-    // Extract the argument as a "mls" type
-    const int p = *((const int *)args[0]);
+static int
+mls_printf_handler(FILE *stream, const struct printf_info *info,
+                   const void *const *args)
+{
+	// Extract the argument as a "mls" type
+	const int p = *((const int *)args[0]);
+	// Convert mls Handle to String
+	const char *s = mls(p, 0);
+	char *o, out[50];
+	o = out;
+	*o++ = '%';
+	if (info->left) {
+		*o++ = '-';
+	}	
+	if (info->width > 0) {
+		o += sprintf(o, "%u", info->width);
+	}
+	if (info->prec > 0) {
+		o += sprintf(o, ".%u", info->prec);
+	}
+	*o++ = 's';
+	*o++ = 0;
 
-    const char *s = mls(p,0);
-    char *o, out[200];
-    o=out;
-    *o++='%';
-    if( info->left ) *o++ = '-';
-
-    if( info->width > 0 ) {
-	    o+= sprintf(o, "%u", info->width );
-    }
-    if( info->prec > 0 ) {
-	    o+= sprintf(o, ".%u", info->prec );
-    }
-    *o++='s';
-    *o++=0;
-    
-    // Print the point structure to the stream
-    return fprintf(stream, out, s );
+	// Print the mls string to the stream using given modifier
+	return fprintf(stream, out, s);
 }
 
 // Custom argument size handler for the 'M' specifier
-static int mls_printf_arginfo(const struct printf_info *info, size_t n, int *argtypes, int *size) {
-    if (n > 0) {
-        argtypes[0] = PA_INT;  // Expecting a pointer to the custom type
-    }
-    return 1;
+static int
+mls_printf_arginfo(const struct printf_info *info, size_t n, int *argtypes,
+                   int *size)
+{
+	if (n > 0) {
+		argtypes[0] = PA_INT; // Expecting 'int' 
+	}
+	return 1;
 }
 
-void demonstrate_printf() {
-	printf("%s\n", __FUNCTION__ );
+void
+demonstrate_printf()
+{
+	printf("\n%s\n", __FUNCTION__);
 	// Register the custom printf specifier 'M'
-	if (register_printf_specifier('M', mls_printf_handler, mls_printf_arginfo) != 0) {
+	if (register_printf_specifier('M', mls_printf_handler,
+	                              mls_printf_arginfo)
+	    != 0) {
 		fprintf(stderr, "Failed to register printf specifier 'M'\n");
 		return;
 	}
 
-    	int src = s_cstr("Hello World");
-	printf("String: '%-14.5M'\n", src );
-	printf("String: '%-14.5s'\n", m_str(src) );
+	int src = s_cstr("Hello World");
+	printf("String: '%-14.5M'\n", src);
+	printf("String: '%-14.5s'\n", m_str(src));
 
-	printf("String: '%M'\n", src );
-	printf("String: '%s'\n", m_str(src) );
+	printf("String: '%M'\n", src);
+	printf("String: '%s'\n", m_str(src));
 }
 
+int
+main()
+{
+	m_init();
+	conststr_init();
+	trace_level = 0;
 
-int main() {
-  m_init();
-  conststr_init();
-  trace_level=0;
-    
-  printf("Advanced String Manipulation Demonstration\n");
-  demonstrate_string_replacement();
-  demonstrate_string_concatenation();
-  demonstrate_string_comparison();
-  demonstrate_string_split();
-  demonstrate_string_copy();
-  demonstrate_string_search();
-  demonstrate_string_sort();
-  demonstrate_printf();
-  conststr_free();
-  m_destruct();
-  return 0;
+	printf("Advanced String Manipulation Demonstration\n");
+	demonstrate_printf();
+	demonstrate_string_replacement();
+	demonstrate_string_concatenation();
+	demonstrate_string_comparison();
+	demonstrate_string_split();
+	demonstrate_string_copy();
+	demonstrate_string_search();
+	demonstrate_string_sort();
+
+	conststr_free();
+	m_destruct();
+	return 0;
 }
-
