@@ -9,6 +9,7 @@
 /* how man strings before forced exit(122) to prevent OOM Killer */ 
 #define CONSTSTR_MAX 9000
 
+void m_register_printf(void);
 
 /* m string (ms) : m-array of (char*) */
 int m_str_va_app(int ms, va_list ap);

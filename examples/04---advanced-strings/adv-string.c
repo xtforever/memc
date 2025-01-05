@@ -1,4 +1,4 @@
-#include "m_tool.h" // Assuming this is the header file for m_tool.c
+#include "m_tool.h"
 #include <printf.h>
 #include <stdio.h>
 
@@ -24,7 +24,7 @@ demonstrate_string_comparison()
 	// if using const-string you have the same handle for the same string
 	int hs4 = cs_printf("%s", "World");
 	printf("compare mstr %M with mstr %M: result=%s\n", hs1, hs4,
-	       hs1 == hs4 ? "true":"false");
+	       hs1 == hs4 ? "true" : "false");
 }
 
 void
@@ -175,56 +175,11 @@ demonstrate_string_replacement()
 	m_free(dest);
 }
 
-// Custom printf handler function for the 'M' specifier
-static int
-mls_printf_handler(FILE *stream, const struct printf_info *info,
-                   const void *const *args)
-{
-	// Extract the argument as a "mls" type
-	const int p = *((const int *)args[0]);
-	// Convert mls Handle to String
-	const char *s = mls(p, 0);
-	char *o, out[50];
-	o = out;
-	*o++ = '%';
-	if (info->left) {
-		*o++ = '-';
-	}
-	if (info->width > 0) {
-		o += sprintf(o, "%u", info->width);
-	}
-	if (info->prec > 0) {
-		o += sprintf(o, ".%u", info->prec);
-	}
-	*o++ = 's';
-	*o++ = 0;
-
-	// Print the mls string to the stream using given modifier
-	return fprintf(stream, out, s);
-}
-
-// Custom argument size handler for the 'M' specifier
-static int
-mls_printf_arginfo(const struct printf_info *info, size_t n, int *argtypes,
-                   int *size)
-{
-	if (n > 0) {
-		argtypes[0] = PA_INT; // Expecting 'int'
-	}
-	return 1;
-}
-
 void
 demonstrate_printf()
 {
 	printf("\n%s\n", __FUNCTION__);
-	// Register the custom printf specifier 'M'
-	if (register_printf_specifier('M', mls_printf_handler,
-	                              mls_printf_arginfo)
-	    != 0) {
-		fprintf(stderr, "Failed to register printf specifier 'M'\n");
-		return;
-	}
+	m_register_printf();
 
 	int src = s_cstr("Hello World");
 	printf("String: '%-14.5M'\n", src);
@@ -232,6 +187,12 @@ demonstrate_printf()
 
 	printf("String: '%M'\n", src);
 	printf("String: '%s'\n", m_str(src));
+
+	printf("String: '%14M'\n", src);
+	printf("String: '%14s'\n", m_str(src));
+
+	printf("String: '%.5M'\n", src);
+	printf("String: '%.5s'\n", m_str(src));
 }
 
 int
@@ -239,13 +200,14 @@ main()
 {
 	m_init();
 	conststr_init();
-	trace_level = 0;
+	trace_level = 1;
 
 	printf("Advanced String Manipulation Demonstration\n");
 	demonstrate_printf();
-	demonstrate_string_replacement();
 	demonstrate_string_concatenation();
 	demonstrate_string_comparison();
+	demonstrate_string_replacement();
+
 	demonstrate_string_split();
 	demonstrate_string_copy();
 	demonstrate_string_search();
