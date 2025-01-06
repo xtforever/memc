@@ -100,7 +100,27 @@ inline static int hash_lookup( int hash, void *buf,
     return hash_item;
 }
 
+int csv_read_stream(FILE *fp)
+{
+	int pat = s_cstr(",");
+	int db = m_create(100,sizeof(int));
+	int ln = m_create(100,1);
+	while( m_fscan(ln,10,fp) != -1 ) {
+		m_puti(db,s_msplit(0,ln,pat);
+		m_clear(ln);
+	}
+	m_free(ln);
+	return db;
+}
 
+int csv_reader(const char *filename)
+{
+  FILE *fp=  fopen(filename, "r" );
+  if( !fp) ERR("file %s not found");
+  int x = csv_read_stream(fp);
+  fclose(fp);
+  return x;
+}
 
 
 
