@@ -886,10 +886,17 @@ void m_bzero(int m) {
 // ********************************************
 
 //! X! speicher das char c an das ende von marray m
-void m_putc(int m, char c) { m_put(m, &c); }
+void m_putc(int m, char c)
+{
+	*(char*)m_add(m)=c;
+}
 
 //! X! speicher ein int an das ende von marray m
-void m_puti(int m, int c) { m_put(m, &c); }
+void m_puti(int m, int c)
+{
+	*(int*)m_add(m)=c;
+}
+
 
 // Vorteile:
 // Übergabe eines Speicherbereichs an eine Funktion die

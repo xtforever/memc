@@ -1,12 +1,19 @@
+#ifndef COMPTAG
+#define COMPTAG "Unknown Compiler Options"
+#endif
+const char *Version = "HASHMAP : MEMC DEMO PROJECT / " COMPTAG;
+
 #include "m_tool.h"
 #include "mls.h"
 #include <stdint.h>
+#include <time.h>
 
-#define HASH_SIZE (4*8)
-#define HASH_BITS 14
-#define HASH_TABLE_SIZE (1<<HASH_BITS)
-#define HASH_TABLE_MASK (HASH_TABLE_SIZE-1)
+#define HASH_SIZE (4 * 8)
+#define HASH_BITS 16
+#define HASH_TABLE_SIZE (1 << HASH_BITS)
+#define HASH_TABLE_MASK (HASH_TABLE_SIZE - 1)
 int HASH_TABLE = 0;
+static int collision_count = 0;
 
 inline static char
 cmp64(void *a, void *b)
@@ -17,6 +24,7 @@ cmp64(void *a, void *b)
 	       && (u0[3] == u1[3]);
 }
 
+// I leave the original comment here:
 // Dedicated to Pippip, the main character in the 'Das Totenschiff'
 // roman, actually the B.Traven himself, his real name was Hermann
 // Albert Otto Maksymilian Feige.  CAUTION: Add 8 more bytes to the
@@ -58,81 +66,305 @@ simple_hash(void *buf)
 	return FNV1A_Pippip_Yurii(buf, HASH_SIZE) & HASH_TABLE_MASK;
 }
 
-
 /** find or insert variable (buf) in hash-table (hash)
     hash - list of integer
     buf  - pointer to buffer with HASH_SIZE bytes
-    returns: handle to item 
+    returns: handle to item
 
-    hash = [ a1 a2 a3 ... ] 
+    hash = [ a1 a2 a3 ... ]
     a1 = [ item1 item2 item3 ]
 
  */
-inline static int hash_lookup( int hash, void *buf,
-                 int (*cmpf)(void *ctx, int hitem, void *buf),
-                 int (*newf)(void *ctx, void *a), void *ctx  )
+
+struct hash_item {
+	int key, val;
+};
+
+/* returns:
+   if val < 0:
+      return val if key is found, otherwise return -1
+   if val >= 0:
+       return val if key is existing in hashmap,
+       return -1  if key was inserted in hashmap
+*/
+
+inline static int
+hash_lookup(int hash, int key, int val)
 {
-    int p, *d;
-    int hash_item;
-    uint32_t c = simple_hash(buf);     /* lookup key in hash-table */
-    int *hash_item_list = mls(hash, c); /* list of keys with same hash */
+	if (m_len(key) < HASH_SIZE) {
+		m_setlen(key, HASH_SIZE); /* resize key if it is too short */
+	}
+	uint32_t c = simple_hash(m_buf(key)); /* lookup key in hash-table */
+	int *hash_item_list = mls(hash, c);   /* list of keys with same hash */
+	int p;
+	struct hash_item data = { .key = key, .val = val };
 
-    // new entry
-    if( *hash_item_list == 0 ) {
-        // insert new item-list in hash-table
-        *hash_item_list = m_create(1, sizeof(int) );
-        goto new_item;
-    }
+	if (val < 0) { /* lookup; do not insert anything */
+		if (*hash_item_list == 0)
+			return -1;
+		p = m_bsearch(&data, *hash_item_list, cmp_mstr_fast);
+		if (p < 0)
+			return -1;
+		return ((struct hash_item *)mls(*hash_item_list, p))->val;
+	}
 
-    // entry found
-    // check if the same is already inside
-    if(cmpf) {
-        m_foreach( *hash_item_list, p, d ) {
-            if( cmpf(ctx, *d, buf) ) return *d;
-        }
-    }
+	/* lookup and insert if not exists */
+	if (*hash_item_list == 0) { /* no hashmap: create one and insert key */
+		*hash_item_list = m_create(1, sizeof(data));
+		m_put(*hash_item_list, &data);
+		return val;
+	}
 
- new_item:
-    // create new item in item-list in hash-table
-    if( ! newf ) return -1;
-    hash_item = newf(ctx,buf);
-    m_put(*hash_item_list, &hash_item);
-    return hash_item;
+	/* one or more items in list: use binary search */
+	p = m_binsert(*hash_item_list, &data, cmp_mstr_fast, 0);
+
+	if (p < 0) { /* item found in hashmap */
+		return ((struct hash_item *)mls(*hash_item_list, -p - 1))->val;
+	}
+	/* item was inserted in hashmap */
+	collision_count++;
+	return -1;
 }
 
-int csv_read_stream(FILE *fp)
+int
+csv_split(int ln)
 {
-	int pat = s_cstr(",");
-	int db = m_create(100,sizeof(int));
-	int ln = m_create(100,1);
-	while( m_fscan(ln,10,fp) != -1 ) {
-		m_puti(db,s_msplit(0,ln,pat);
+	int str_open = 0;
+	int wl = m_create(2, sizeof(int)); /* my word list */
+	int w = 0;                         /* my word */
+	int p = 0;
+	char *d = 0;
+	int len = m_len(ln);
+	if (!len) {
+		return wl;
+	}
+	for (;;) {
+		d = mls(ln, p++);
+		if (w == 0)
+			w = m_create(10, 1); /* new word */
+		if (*d == '"') {
+			str_open = !str_open;
+			continue;
+		}
+		if ((!str_open && *d == ',') || (*d == 0)
+		    || p >= m_len(ln) - 1) {
+			m_putc(w, 0);
+			m_puti(wl, w);
+			w = 0;
+			if (*d != ',') {
+				return wl;
+			}
+		} else {
+			m_put(w, d);
+		}
+	}
+}
+
+int
+csv_read_stream(FILE *fp)
+{
+	int db = m_create(100, sizeof(int));
+	int ln = m_create(100, 1);
+	while (m_fscan(ln, 10, fp) != -1) {
+		m_puti(db, csv_split(ln));
 		m_clear(ln);
 	}
 	m_free(ln);
 	return db;
 }
 
-int csv_reader(const char *filename)
+int
+csv_reader(const char *filename)
 {
-  FILE *fp=  fopen(filename, "r" );
-  if( !fp) ERR("file %s not found");
-  int x = csv_read_stream(fp);
-  fclose(fp);
-  return x;
+	FILE *fp = fopen(filename, "r");
+	if (!fp)
+		ERR("file %s not found");
+	int x = csv_read_stream(fp);
+	fclose(fp);
+	return x;
 }
 
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
 
+void
+freecsv(void *d)
+{
+	m_free_list(*(int *)d);
+}
+
+void
+print_csv_data(int wds, int data)
+{
+	int p, *d;
+	m_foreach(data, p, d)
+	{
+		if (p >= m_len(wds))
+			break;
+		int w = INT(wds, p);
+		if (p)
+			printf("| ");
+		printf("%*.*M", w, w, *d);
+	}
+	printf("\n");
+}
+
+/**
+ * @fn timespec_diff(struct timespec *, struct timespec *, struct timespec *)
+ * @brief Compute the diff of two timespecs, that is a - b = result.
+ * @param a the minuend
+ * @param b the subtrahend
+ * @param result a - b
+ */
+static inline void
+timespec_diff(struct timespec *a, struct timespec *b, struct timespec *result)
+{
+	result->tv_sec = a->tv_sec - b->tv_sec;
+	result->tv_nsec = a->tv_nsec - b->tv_nsec;
+	if (result->tv_nsec < 0) {
+		--result->tv_sec;
+		result->tv_nsec += 1000000000L;
+	}
+}
+
+static struct timespec tp0;
+void
+timer_start(void)
+{
+	clock_gettime(CLOCK_MONOTONIC, &tp0);
+}
+
+double
+timer_stop(void)
+{
+	struct timespec tp1, tp2;
+	clock_gettime(CLOCK_MONOTONIC, &tp1);
+	timespec_diff(&tp1, &tp0, &tp2);
+	long double n = tp2.tv_sec;
+	n = n * 1E6 + (tp2.tv_nsec / 1E3);
+	return n;
+}
+
+void
+demonstrate_csv_reader(void)
+{
+	const char *csv_file = "demo.csv";
+	int csv = csv_reader(csv_file);
+	if (m_len(csv) < 2) {
+		ERR("Not enough data in csv file %s", csv_file);
+	}
+
+	int p, *d;
+
+	/* calculate widths of columns, array wds must have at least 'column'
+	 * entries */
+	int wds = m_create(10, sizeof(int));
+	int data = INT(
+	    csv,
+	    1); /* first(0) line contains column names, (1..n) contains data */
+	int header = INT(csv, 0); /* first line contains column names */
+	int columns = m_len(header);
+	m_setlen(wds, columns); /* resize array to width 'columns' */
+	/* put max size of each data element in array wds */
+	m_foreach(csv, p, d)
+	{
+		int p1, *d1;
+		m_foreach(*d, p1, d1)
+		{
+			INT(wds, p1) = Max(m_len(*d1) + 2, INT(wds, p1));
+		}
+	}
+	/* fill array wds with '2' up to columns */
+	for (p = m_len(data); p < columns; p++) {
+		m_puti(wds, 2);
+	}
+	/* shorten array if it has too many entries */
+	m_setlen(wds, columns);
+	/* create entries consiting of dashes */
+	int hdash = m_create(columns, sizeof(int));
+	for (int i = 0; i < columns; i++) {
+		int w = INT(wds, i);
+		/* create byte array, filled with dash, append to list hdash */
+		m_puti(hdash, m_memset(0, '-', w));
+	}
+
+	/* print header */
+	print_csv_data(wds, header);
+	print_csv_data(wds, hdash);
+
+	/* print some lines of data */
+	for (int i = 1; i < 3; i++) {
+		print_csv_data(wds, INT(csv, i));
+	}
+
+	/* insert email into hashmap
+	   find Email column
+	*/
+	int hash = m_create(HASH_TABLE_SIZE, sizeof(int));
+	m_setlen(hash, HASH_TABLE_SIZE);
+
+	/* search the array of handles for the string 'Emails' */
+	char *em = "Email";
+	int email_field = m_lfind(&em, header, cmp_mstr_cstr_fast); /*!X! */
+	if (p < 0) {
+		WARN("No Email column in csv");
+		goto leave;
+	}
+
+	timer_start();
+	m_foreach(csv, p, d)
+	{
+		if (email_field >= m_len(*d))
+			continue; /* no email column in this line */
+		int email = INT(*d, email_field);
+		hash_lookup(hash, email, p); /* store line number and email */
+	}
+	printf("Created hashmap for %d entries. %f  hash/µsec, collison: %d, "
+	       "size: %d\n",
+	       m_len(csv), m_len(csv) / timer_stop(), collision_count,
+	       HASH_TABLE_SIZE);
+
+	long long int count = 10000000;
+	printf("Executing %lld hashes\n", count);
+	timer_start();
+	for (int i = 0; i < count; i++) {
+		/* random number module number of lines in this csv */
+		int keynum = rand() % m_len(csv);
+		/* fetch handle to line 'keynum' */
+		int ln = INT(csv, keynum);
+		/* check if this line has enough fields */
+		if (m_len(ln) < email_field) {
+			continue;
+		}
+		/* entry at positon 'email_field' from line 'ln'  */
+		int email = INT(ln, email_field);
+		/* find line numer in hashmap by email  */
+		int x = hash_lookup(hash, email, -1);
+		if (x != keynum) {
+			WARN("email %M not found", email);
+		}
+	}
+	double h = count / timer_stop();
+	printf("hashmap speed: %f hash/µsec\n", h);
+
+leave:
+	m_free_list(hash);
+	m_free_user(csv, freecsv, 0);
+	m_free(wds);
+	m_free_list(hdash);
+}
 
 int
 main()
 {
+	printf("Version: %s\n", Version);
 	m_init();
 	conststr_init();
 	m_register_printf();
-	trace_level = 1;
+	trace_level = 0;
 
 	printf("Hashmap Demonstration\n");
+	demonstrate_csv_reader();
 
 	conststr_free();
 	m_destruct();

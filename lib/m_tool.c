@@ -781,6 +781,22 @@ leave:
 	return dest;
 }
 
+int m_memset(int ln, char c, int w)
+{
+	if( ln  == 0 ) ln = m_create(w,1);
+	m_setlen(ln,w);
+	if( m_width(ln) == 1 )
+		memset(m_buf(ln),c,w);
+	else {
+		for(int i=0;i<w;i++) {
+			*(char *)mls(ln,i) = c;
+		}		
+	}
+	return ln;
+}
+
+
+
 void
 conststr_free(void)
 {
@@ -820,6 +836,13 @@ cmp_mstr_fast(const void *a, const void *b)
 	if (m_len(k1) > m_len(k2))
 		return 1;
 	return m_cmp(k1, k2);
+}
+
+int cmp_mstr_cstr_fast(const void *key, const void *b)
+{
+	const char *const *s = key;
+	int mstr = *(int*) b;
+	return -mstrcmp(mstr, 0, *s);	
 }
 
 static int

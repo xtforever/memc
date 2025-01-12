@@ -21,6 +21,8 @@ int m_strncpy(int dst, int src, int max);
 int m_mcopy(int dest, int destp, int src, int srcp, int src_count  );
 int m_binsert( int buf, const void *data, int (*cmpf) (const void *a,const void *b ), int with_duplicates );
 int compare_int(const void *a,const void *b);
+int cmp_mstr_fast(const void *a, const void *b);
+int cmp_mstr_cstr_fast(const void *a, const void *b);
 
 void m_free_ptr(void *d);
 void m_free_user(int m, void (*free_h)(void*), int only_clear );
@@ -53,7 +55,7 @@ int s_msplit(int dest, int src, int pattern );
 int s_implode(int dest, int srcs, int seperator );
 
 void m_map( int m, int (*fn) ( int m, int p, void *ctx ), void *ctx  );
-
+int  m_memset(int ln, char c, int w); 
 
 /* imported from conststr */
 void conststr_stats(void);

@@ -1,4 +1,8 @@
 *~
 *.o
 adv-string
+a.out
+*.do
+hashmap
+hasmpapd
 
