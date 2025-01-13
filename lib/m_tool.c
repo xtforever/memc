@@ -853,6 +853,23 @@ mscmpc(const void *a, const void *b)
 	return -mstrcmp(*d, 0, *s);
 }
 
+int m_str_from_file( char *filename )
+{
+	FILE *fp = fopen( filename, "r" );
+	int db = m_create(100, sizeof(int));
+	if(!fp) return db;
+	int ln;
+	while(1) {
+		ln = m_create(100, 1);
+		if( m_fscan(ln, 10, fp) < 0 ) break;
+		m_puti(db, ln );
+	}
+	m_free(ln);	
+	fclose(fp);	
+	return db;     
+}
+
+
 /* schau nach ob s schon vorhanden ist, wenn ja liefere die vorhandene kopie,
    sonst fuege ein kopie von s hinzu IDEE: x=m_create(); m_put(x,data); z=
    conststr_lookup(x); free(x);

@@ -23,6 +23,7 @@ int m_binsert( int buf, const void *data, int (*cmpf) (const void *a,const void 
 int compare_int(const void *a,const void *b);
 int cmp_mstr_fast(const void *a, const void *b);
 int cmp_mstr_cstr_fast(const void *a, const void *b);
+int m_str_from_file( char *filename );
 
 void m_free_ptr(void *d);
 void m_free_user(int m, void (*free_h)(void*), int only_clear );

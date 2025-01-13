@@ -7,22 +7,26 @@ CFLAGS_OPT=-D_GNU_SOURCE -O3 -Wall -fdata-sections -ffunction-sections -Wl,--gc-
 ifeq ($(debug_enable),1)
 COMPTAG="\"DEBUG_$(shell date)\""
 CFLAGS=$(CFLAGS_DEBUG)
-OBJ=d
+OBJ=.d
 else
 COMPTAG="\"PROD_$(shell date)\"" 
 CFLAGS=$(CFLAGS_OPT)
-OBJ=
+OBJ=.
 endif
 CFLAGS+= -DCOMPTAG=$(COMPTAG)
 
-all: ${TARGET}${OBJ}
+all: ${TARGET}${OBJ} mmsql${OBJ}
 
 %.do: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-${TARGET}${OBJ}: mls.${OBJ}o m_tool.${OBJ}o ${TARGET}.${OBJ}o
+%.d: %.do
 	$(CC) $(CFLAGS) -o $@ $^
 
+${TARGET}${OBJ}: mls${OBJ}o m_tool${OBJ}o ${TARGET}${OBJ}o
+
+mmsql${OBJ}: mls${OBJ}o m_tool${OBJ}o mmsql${OBJ}o m_mysql${OBJ}o -lmysqlclient
+
 clean:
-	-${RM} *.o *.do *~ ${TARGET} ${TARGET}d
+	-${RM} *.o *.do *~ ${TARGET} ${TARGET}.d mmsql.d
 

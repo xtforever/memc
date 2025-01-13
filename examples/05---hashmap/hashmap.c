@@ -131,32 +131,40 @@ csv_split(int ln)
 {
 	int str_open = 0;
 	int wl = m_create(2, sizeof(int)); /* my word list */
-	int w = 0;                         /* my word */
-	int p = 0;
-	char *d = 0;
-	int len = m_len(ln);
-	if (!len) {
-		return wl;
-	}
-	for (;;) {
-		d = mls(ln, p++);
-		if (w == 0)
-			w = m_create(10, 1); /* new word */
-		if (*d == '"') {
+	int w = m_create(10, 1);           /* my word */
+	int p = 0;                         /* scan postion  */
+	char ch = 0;                       /* current char */
+	int len = m_len(ln);               /* length of line */
+
+	while (1) {
+		/* store current word and leave if no more characters in buffer
+		 */
+		/* special case 1: empty line, 2: terminating zero missing THEN:
+		 */
+		/* RETURN list of mstr with one empty mstr */
+		if (p >= len) {
+		leave:
+			m_putc(w, 0);
+			m_puti(wl, w);
+			return wl;
+		}
+		ch = *(char *)mls(ln, p++);
+		if (ch == 0)
+			goto leave;
+		/* quoted string found, start from beginning */
+		if (ch == '"') {
 			str_open = !str_open;
 			continue;
 		}
-		if ((!str_open && *d == ',') || (*d == 0)
-		    || p >= m_len(ln) - 1) {
+		/* store comma only if not in quoted string */
+		if (!str_open && ch == ',') {
 			m_putc(w, 0);
 			m_puti(wl, w);
-			w = 0;
-			if (*d != ',') {
-				return wl;
-			}
-		} else {
-			m_put(w, d);
+			w = m_create(10, 1);
+			continue;
 		}
+		/* simple char found, store in word */
+		m_putc(w, ch);
 	}
 }
 
@@ -354,6 +362,32 @@ leave:
 	m_free_list(hdash);
 }
 
+void
+csv_split1(int m)
+{
+	int p, *d;
+	int ln = csv_split(m);
+	m_foreach(ln, p, d) { printf("%c%d:%M", p?',':' ',p, *d); }
+	putchar(10);
+	m_free_list(ln);
+}
+
+void
+demonstrate_csv_split(void)
+{
+
+	csv_split1(s_cstr("hello,world"));
+	csv_split1(s_cstr("hello"));
+	csv_split1(s_cstr("hell,\"o,w\",orld"));
+	csv_split1(s_cstr("hell,\"o,w\""));
+	csv_split1(s_cstr("hell,\"\""));
+	csv_split1(s_cstr("\"\"hell,\"\""));
+	csv_split1(s_cstr(""));
+	csv_split1(s_cstr(","));
+	csv_split1(s_cstr("\"\","));
+	csv_split1(s_cstr("\""));
+}
+
 int
 main()
 {
@@ -362,6 +396,8 @@ main()
 	conststr_init();
 	m_register_printf();
 	trace_level = 0;
+
+	// demonstrate_csv_split();
 
 	printf("Hashmap Demonstration\n");
 	demonstrate_csv_reader();
