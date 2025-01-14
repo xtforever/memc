@@ -3,6 +3,8 @@
 adv-string
 a.out
 *.do
+*.exe
+*.exed
 hashmap
 hasmpapd
 

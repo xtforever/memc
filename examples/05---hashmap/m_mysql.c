@@ -81,8 +81,8 @@ int m_mysql_query( MYSQL *conn, char *query, int res )
 
   TRACE(2,query);
   if( mysql_query(conn, query ) ) {
-    WARN("Error %u: %s\n", mysql_errno(conn), mysql_error(conn));
-    return -1;
+	  WARN("Error %u: %s\nQuery:%s\n", mysql_errno(conn), mysql_error(conn), query);
+	  return -1;
   }
 
   if(mysql_field_count(conn) == 0 || res < 1 )

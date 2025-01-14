@@ -85,7 +85,7 @@ typedef struct ls_st {
 	int w, l, max;
 	char uaf_protection;
 	char d[0];
-} *lst_t;
+} *lst_t __attribute__(( aligned(1) ));
 
 void* lst( lst_t l, int i )   __attribute__ ((pure));
 lst_t lst_create(int max, int w);

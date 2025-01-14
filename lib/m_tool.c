@@ -324,6 +324,11 @@ m_clear_user(int m, void (*free_h)(void *))
 void
 m_free_list(int m)
 {
+	if( m_width(m) < sizeof(int) ) {
+		ERR("expected array of handles/int but list %d has width %d",
+		    m, m_width(m) );
+	}
+	
 	m_free_user(m, m_free_ptr, 0);
 }
 
