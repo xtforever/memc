@@ -946,3 +946,52 @@ conststr_stats(void)
 	m_foreach(CONSTSTR_DATA, p, d) { len += m_len(*d); }
 	TRACE(4, "Memory: %d", len);
 }
+
+int
+s_strncmp2(int s0, int p0, int s1, int p1, int len)
+{
+	int l0 = m_len(s0);
+	int l1 = m_len(s1);
+
+	while (len--) {
+		if (p0 >= l0)
+			return -1;
+		if (p1 >= l1)
+			return 1;
+		int diff = CHAR(s0, p0) - CHAR(s1, p1);
+		if (diff || CHAR(s0, p0) == 0)
+			return diff;
+		p0++;
+		p1++;
+	}
+	return 0;
+}
+
+int
+s_strncmpr(int str, int suffix)
+{
+	if (!str || !suffix)
+		return 0;
+	size_t lenstr = m_len(str);
+	size_t lensuffix = m_len(suffix);
+	if (lensuffix > lenstr)
+		return 0;
+	return s_strncmp2(str, lenstr - lensuffix, suffix, 0, lensuffix) == 0;
+}
+
+int
+s_readln(int buf, FILE *fp)
+{
+	m_clear(buf);
+	int ret = m_fscan(buf, 10, fp);
+	if (ret < 0 && m_len(buf) > 1)
+		return 0;
+	return ret;
+}
+
+int
+s_regex(int res, char *regex, int buf)
+{
+	m_regex(res, regex, m_str(buf));
+	return m_len(res);
+}

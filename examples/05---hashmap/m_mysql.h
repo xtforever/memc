@@ -16,7 +16,6 @@ char * get_entry( int res, int x, int y );
 int field_count(int res);
 int row_count(int res);
 char *field_name(int res, int i);
-
-
+int mysql_quote_escape(int b, int s);
 
 #endif

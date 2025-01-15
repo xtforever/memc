@@ -57,6 +57,11 @@ int s_implode(int dest, int srcs, int seperator );
 
 void m_map( int m, int (*fn) ( int m, int p, void *ctx ), void *ctx  );
 int  m_memset(int ln, char c, int w); 
+int s_strncmp2(int s0, int p0, int s1, int p1, int len);
+int s_strncmpr(int str, int suffix);
+int s_readln(int buf, FILE *fp);
+int s_regex(int res, char *regex, int buf);
+
 
 /* imported from conststr */
 void conststr_stats(void);
