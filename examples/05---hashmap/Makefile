@@ -1,7 +1,7 @@
 debug_enable ?= 1
 TARGET=hashmap
 CC=gcc
-CFLAGS_DEBUG=-ggdb -D_GNU_SOURCE -DMLS_DEBUG -O0 -Wall
+CFLAGS_DEBUG=-ggdb -D_GNU_SOURCE -DMLS_DEBUG -O0 -Wall -fstack-protector-all -fsanitize=address
 CFLAGS_OPT=-D_GNU_SOURCE -Ofast -Wall -fdata-sections -ffunction-sections -Wl,--gc-sections
 
 ifeq ($(debug_enable),1)
@@ -15,7 +15,7 @@ OBJ=
 endif
 CFLAGS+= -DCOMPTAG=$(COMPTAG)
 
-all: ${TARGET}.exe${OBJ} mmsql.exe${OBJ} cmk-inventory.exe${OBJ}
+all: ${TARGET}.exe${OBJ} mmsql.exe${OBJ} cmk-inventory.exe${OBJ} glob-match.exe${OBJ}
 
 %.do: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -33,5 +33,5 @@ mmsql.exe${OBJ}: mls.${OBJ}o m_tool.${OBJ}o m_mysql.${OBJ}o m_csv.${OBJ}o  -lmys
 cmk-inventory.exe${OBJ}: mls.${OBJ}o m_tool.${OBJ}o m_mysql.${OBJ}o m_csv.${OBJ}o  -lmysqlclient
 
 clean:
-	-${RM} *.o *.do *~ ${TARGET} ${TARGET}.d mmsql.d
+	-${RM} *.o *.do *~ *.exe *.exed
 
