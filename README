@@ -2,6 +2,8 @@
 
 An easier way to write c code.
 
+TL;DR: examples/04---advanced-strings/adv-string.c: demonstrate_string_concatenation()
+
 This approach aims to minimize the direct use of pointers by replacing direct memory access with helper functions that use handles - simple integer values - to reference memory blocks. Each handle points to a structure that describes a specific memory block, enabling a safer and more controlled way of accessing and manipulating memory.
 
 To facilitate debugging, mls.h includes a suite of macros. A brief demonstration of the error-handling mechanisms is provided in examples/03---error-handling.
