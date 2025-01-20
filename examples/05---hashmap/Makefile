@@ -15,7 +15,7 @@ OBJ=
 endif
 CFLAGS+= -DCOMPTAG=$(COMPTAG)
 
-all: ${TARGET}.exe${OBJ} mmsql.exe${OBJ} cmk-inventory.exe${OBJ} glob-match.exe${OBJ}
+all: ${TARGET}.exe${OBJ} 
 
 %.do: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -27,10 +27,6 @@ all: ${TARGET}.exe${OBJ} mmsql.exe${OBJ} cmk-inventory.exe${OBJ} glob-match.exe$
 	$(CC) $(CFLAGS) -o $@ $^
 
 ${TARGET}.exe${OBJ}: mls.${OBJ}o m_tool.${OBJ}o m_csv.${OBJ}o
-
-mmsql.exe${OBJ}: mls.${OBJ}o m_tool.${OBJ}o m_mysql.${OBJ}o m_csv.${OBJ}o  -lmysqlclient
-
-cmk-inventory.exe${OBJ}: mls.${OBJ}o m_tool.${OBJ}o m_mysql.${OBJ}o m_csv.${OBJ}o  -lmysqlclient
 
 clean:
 	-${RM} *.o *.do *~ *.exe *.exed
