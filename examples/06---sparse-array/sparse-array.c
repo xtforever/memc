@@ -1,7 +1,4 @@
-
 #include "mls.h"
-
-
 #include <stdio.h>
 
 typedef struct entry {
