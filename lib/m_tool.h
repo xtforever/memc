@@ -18,6 +18,7 @@ int m_str_app(int ms, ...);
 int m_str_split(int ms, char *s, char* delim, int trimws );
 
 
+int s_strcmp_c( int mstr, const char *s );
 int m_strncpy(int dst, int src, int max);
 int m_mcopy(int dest, int destp, int src, int srcp, int src_count  );
 int m_binsert( int buf, const void *data, int (*cmpf) (const void *a,const void *b ), int with_duplicates );

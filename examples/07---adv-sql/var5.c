@@ -108,8 +108,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "xtcw/mls.h"
-#include "xtcw/ctx.h"
+#include "mls.h"
+#include "ctx.h"
 #include "var5.h"
 #include "m_tool.h"
 #include <errno.h>
