@@ -803,8 +803,8 @@ void mvar_free( int id )
 
     var_t **v = mvar_get(id);
     if( ! *v ) {
-	WARN("double-free Var %d", id);
-	return;
+	    // WARN("double-free Var %d", id);
+	    return;
     }
     TRACE(2, "FREE %s", (**v).name );
     var5_delete_hash( *v );
