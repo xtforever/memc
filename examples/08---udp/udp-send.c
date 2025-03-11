@@ -37,6 +37,20 @@ int main(int argc, char **argv)
 		perror( "Error in sendto()");
 		return EXIT_FAILURE;
 	}
-	    
+
+	#define BUFFER_SIZE 1400
+	char buffer[BUFFER_SIZE];
+	socklen_t addr_len = sizeof(server);
+	int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&server, &addr_len );			 
+	if (n < 0) {
+		perror("Receive failed");
+		close(sockfd);
+		exit(1);
+	}
+	
+	buffer[n] = '\0'; // Null-terminate the received string
+	printf("Response from server: %s\n", buffer);
+	close(sockfd);
+
 	return EXIT_SUCCESS;
 }

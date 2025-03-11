@@ -1,6 +1,11 @@
 /**
  * UDP server
  */
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
+
+/* lookup_obj = create(v,ctx) */
+
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +15,7 @@
 #include <netdb.h>
 #include <time.h>
 #include "mls.h"
+#include "m_tool.h"
 
 
 /*
@@ -21,11 +27,13 @@
 	  eqqstring =  [^"]* with escaped chars
    max: 1470 BYTES / Packet
    
-2) retrive values
+2) retrive/delete values
    recv:   hostname *
    send:   {key='escaped-string' SPACE}* NEWLINE <terminates session>
    max: 1470 BYTES / Packet
 
+   
+   
 
    parser:
 
@@ -46,120 +54,170 @@
 
 
 
+/* copy characters from buf[p..] to out until one of *delim is found
+   returns: last parsed character
+   out will be a zero terminated string
+   parsed word will be appended to out
+*/
+int p_word(int out, int buf, int *p, char *delim )
+{
+        int ch=0;
+	m_clear(out);
+        while( *p < m_len(buf) && isspace(ch=CHAR(buf,*p)) ) { (*p)++; }
+        while( *p < m_len(buf) && !strchr( delim, ch=CHAR(buf,*p) ) && ch ) { m_putc(out,ch); (*p)++; }
+        m_putc(out,0);
+        return ch;
+}
 
-typedef unsigned long uint64;
-typedef unsigned char uint8;
 
 #define BUF_SIZE 1000
 
-#define ALARM_RESET 20
-#define INTV_AVG 7
-#define INTV_TIME 5
-#define INTV_LEVEL 3
-int intv_secs[INTV_LEVEL]   = { 6, 8, 11 };
+struct keystore {
+	int key,val;
+};
 
-uint64 diff_timespec(const struct timespec *time1,
-    const struct timespec *time0) {
+struct host_db {
+	int host, keystore;
+};
 
-  struct timespec diff = {.tv_sec = time1->tv_sec - time0->tv_sec, //
-      .tv_nsec = time1->tv_nsec - time0->tv_nsec};
-  if (diff.tv_nsec < 0) {
-    diff.tv_nsec += 1000000000; // nsec/sec
-    diff.tv_sec--;
-  }
+static int HOSTDB = 0;
 
-  uint64 ret = diff.tv_sec * 1000 + diff.tv_nsec / 1e6;
-  return ret;
+int binsert_int(int buf, int key)
+{
+	void *obj = calloc(1,m_width(buf));
+	*(int*)obj = key;
+	int ret = m_binsert(buf,obj,cmp_int,0);
+	free(obj);
+	return ret;
 }
 
-struct client_tm {
-  uint8 cnt, avg_init;
-  uint64 delta[INTV_AVG];
-  struct timespec last;
-  int alarm;
-  int alarm_timer;
-  uint64 jitter_sum, avg;
-
-} CL_TEST = { 0 };
-
-
-
-
-
-void msg_client( char *host, char *buf )
+int bsearch_int(int buf, int key)
 {
-  int i;
-  uint64 diff;
-  struct timespec cur;
-  struct client_tm *cl = & CL_TEST;
-  clock_gettime( CLOCK_MONOTONIC_RAW, &cur);
-  if( ! host ) { return; }
-  printf( "*%s:%f\n", host, cur.tv_sec * 1000 + cur.tv_nsec / 1e6 );
-  return;
-
-  diff = diff_timespec( &cur, & cl->last );
-  printf("ping %ld\n", diff );
-
-  /* noch keine startzeit gesetzt */
-  if( cl->last.tv_sec + cl->last.tv_nsec == 0 ) {
-    cl->last = cur;
-    return;
-  }
-
-  /* wennn keine Nachricht kommt wird ein alarm ausgeloest
-     Der alarm wird eskaliert, wenn  laenger keine Nachricht kommt
-  */
-  if( ! buf ) {
-    /* keine nachricht, aber noch zu frueh zum meckern */
-    if( diff < intv_secs[0] * 1000 ) return;
-
-    /* nachricht ueberfaellig, muss mal etwas laut werden */
-    cl->cnt=0; cl->avg_init=0; /* jitter loeschen */
-    cl->alarm_timer = ALARM_RESET;
-    for( i = 1; i <= INTV_LEVEL; i++ ) {
-      if( diff > intv_secs[ INTV_LEVEL - i] * 1000 ) {
-        printf("ALARM: %d %ld\n", i, diff );
-        cl->alarm = i;
-        break;
-      }
-    }
-    return;
-  }
+	return m_bsearch(&key,buf,cmp_int);
+}
 
 
-  puts("msg");
-  cl->last = cur;
+void new_host(void *ent, void *unused )
+{
+	(void) unused;
+	struct host_db *h = ent;
+	h->keystore = m_create(2,sizeof(struct host_db));	
+}
 
-  /* wurde ein alarm ausgeloest wird dieser bei der naechsten nachricht eine stufe runtergestuft */
-  if( cl->alarm ) cl->alarm--;
+/* return ptr to array-entry that matches `key`, insert `key` if not found and
+   call the new() function if defined.
+   return: ptr to array-entry
+*/
+void *m_lookup_int(int buf, int key, void (*new)(void *, void *), void *ctx )
+{
+	void *obj = calloc(1,m_width(buf));
+	*(int*)obj = key;
+	int p = m_binsert(buf,obj,cmp_int,0);
+	free(obj);
+	if( p < 0 ) { /* entry exists */
+		return  mls( buf, (-p)-1 );
+	}
+	if( new ) new( mls( buf,p ), ctx );
+	return mls( buf,p );
+}
 
-  /* wenn eine Nachricht ankommt kann der jitter berechnet werden
-     Die genauigkeit betraegt 10 milliseconds.
-     Voraussetzung: Es sind INTV_AVG Nachrichten vorhanden
-     Formel: floating_avg( summme der quadrierte abweichungen ) / n
-  */
+int get_host(int tmp)
+{
+	if(!HOSTDB) { HOSTDB=m_create(10,sizeof(struct host_db)); }
+	int cs = s_mstr(tmp); /* store hostname as const */
+	struct host_db *ent = m_lookup_int( HOSTDB, cs, new_host, NULL );
+	return ent->keystore;
+}
+	
+int store_keys(int keys, int k, int v)
+{
+	int cs = s_mstr(k); /* store key as constant */
+	struct keystore *ent = m_lookup_int(keys,cs,NULL,NULL);
+	ent->val = m_slice(ent->val,0, v,0,-1); /* overwrite val */
+	return 0;
+}
 
-  /* quadrat der abweichung in ms */
-  uint64 tm = diff / 10;
-  tm -= INTV_TIME * 100;
-  tm *= tm;
+int reply_to(int sfd, int host)
+{
+	TRACE(1,"");
+	int buf = m_create(100,1);
+	int p = bsearch_int( HOSTDB, s_mstr(host) );
+	if(p<0) {
+		s_printf(buf,0,"<EMPTY>\n" );
+		return buf;
+	}
+	int cnt=0;
+	struct host_db *hh=mls(HOSTDB,p);
+	struct keystore *key;
+	m_foreach(hh->keystore,p,key) {
+		s_printf(buf,cnt,"%s=%s ", m_str(key->key), m_str(key->val) );
+		cnt = m_len(buf)-1; 
+	}
+	return buf;
+}
 
-  /* floating average */
-  cl->jitter_sum += tm ;
-  cl->jitter_sum -= cl->delta[cl->cnt];
-  cl->delta[cl->cnt] = tm;
+void cleanup(void)	
+{
+	int p1,p2;
+	struct keystore *key;
+	struct host_db *hh;
+	m_foreach(HOSTDB,p1,hh) {
+		m_foreach(hh->keystore,p2,key) {
+			m_free(key->val);
+		}
+		m_free(hh->keystore);		
+	}
+	m_free(HOSTDB);
+	HOSTDB=0;
+}
 
-  /* Die Auswertung kann erfolgen sobald mindestens INT_AVG points gesammelt wurden */
-  printf("cnt=%d\n", cl->cnt );
-  cl->cnt++; if( cl->cnt >= INTV_AVG ) {
-    cl->cnt=0;
-    cl->avg_init=1;
-  }
-  if( ! cl->avg_init ) return;
 
-  uint64 avg = cl->jitter_sum / INTV_AVG;
-  printf("jitter %ld\n", avg  );
-  cl->avg = avg;
+static int msg_client( int sfd, char *host, int buf )
+{
+	int ret = 0;
+	if( ! host ) { return ret; }
+
+	int tmp1 = m_create(100,1);
+	int tmp2 = m_create(100,1);
+
+	/* get first param */
+	int pos = 0;
+	p_word( tmp1, buf, &pos, " \t" );
+	int p = pos;
+	if( m_len(tmp1) < 2 ) goto fin;
+		
+	/* opt. get second param */
+	int ch = p_word( tmp2, buf, &pos, " \t=*" );
+	if( m_len(tmp2) < 2 ) {
+		if( ch == '*' ) ret = reply_to(sfd,tmp1);
+		goto fin;
+	}
+	if( ch != '=' ) goto fin;
+	
+	/* we have at least two parameters, lets reset and try to parse key=value pairs */
+	/* start at p */
+
+	int keys = 0;
+	int k,v;
+	k = m_create(10,1);
+	v = m_create(10,1);	
+	while(1) {
+		ch = p_word( k, buf, &p, "=" );	
+		if(ch!='=') break;
+		p++; /* skip delimeter */			
+		ch = p_word( v, buf, &p, " \t" );
+		if( m_len(v) < 2 ) break;
+		if( !keys ) { keys = get_host(tmp1); }
+		store_keys(keys,k,v);
+	}
+	m_free(k);
+	m_free(v);
+	ret = s_printf(0,0, "<OK>\n");
+	
+	fin:
+	m_free(tmp1);
+	m_free(tmp2);
+	return ret;
 }
 
 
@@ -189,21 +247,43 @@ int wait_for_udp(int fd)
 
 int main(int argc, char *argv[])
 {
-	m_init();
-	trace_level=1;
-
 	struct addrinfo hints;
-           struct addrinfo *result, *rp;
-           int sfd, s;
-           struct sockaddr_storage peer_addr;
-           socklen_t peer_addr_len;
-           ssize_t nread;
-           char buf[BUF_SIZE];
+	struct addrinfo *result, *rp;
+	int sfd, s;
+	struct sockaddr_storage peer_addr;
+	socklen_t peer_addr_len;
+	ssize_t nread;
 
-           if (argc != 2) {
-               fprintf(stderr, "Usage: %s port\n", argv[0]);
-               exit(EXIT_FAILURE);
-           }
+
+	#if 0
+	m_init();
+	conststr_init();
+	m_register_printf();
+	trace_level=1;
+	int buf = s_printf(0,0, "t1 a=7" );
+	msg_client(1,"",buf);
+	s_printf(buf,0, "t1 a=7 b=9" );
+	msg_client(1,"",buf);
+	s_printf(buf,0, "t1 *" );
+	msg_client(1,"",buf);
+	cleanup();
+	conststr_free();
+	m_destruct();
+	
+	exit(0);
+#endif
+	
+	
+
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s port\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	m_init();
+	conststr_init();
+	m_register_printf();
+	trace_level=1;
 
            memset(&hints, 0, sizeof(struct addrinfo));
            hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
@@ -246,31 +326,37 @@ int main(int argc, char *argv[])
 
            /* Read datagrams and echo them back to sender */
 
-
+	   int hbuf = m_create(BUF_SIZE,1);
            for (;;) {
                peer_addr_len = sizeof(struct sockaddr_storage);
                if( wait_for_udp( sfd ) != 0 ||
-                   (nread=recvfrom(sfd, buf, BUF_SIZE, 0,
+                   (nread=recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
                                     (struct sockaddr *) &peer_addr, &peer_addr_len)) <= 0 )
                  {
-                   msg_client(0,0);
                    continue;
                  }
-
+	       m_setlen(hbuf,nread);	       
+	       
                char host[NI_MAXHOST], service[NI_MAXSERV];
-
-               s = getnameinfo((struct sockaddr *) &peer_addr,
+	       s = getnameinfo((struct sockaddr *) &peer_addr,
                                peer_addr_len, host, NI_MAXHOST,
                                service, NI_MAXSERV, NI_NUMERICSERV);
                if (s == 0) {
-
-                 msg_client(host,buf);
-                 printf("Received %zd bytes from %s:%s\n",
-                        nread, host, service);
+		       printf("Received %zd bytes from %s:%s\n",
+			      nread, host, service);
                }
                else
                    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(s));
-           }
 
+	       int reply = msg_client(sfd,host,hbuf);
+	       if( reply > 0 ) {
+		       sendto(sfd, m_buf(reply), m_len(reply), 0, 
+			      (struct sockaddr *) &peer_addr, peer_addr_len);
+		       m_free(reply);
+	       }
+           }
+	   
+	   cleanup();
+	   conststr_free();
 	   m_destruct();
 }

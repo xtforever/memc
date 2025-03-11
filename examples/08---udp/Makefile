@@ -18,16 +18,23 @@ CFLAGS+= -DCOMPTAG=$(COMPTAG)
 DEPS=mls.o${OBJ} m_tool.o${OBJ} 
 NEW_TARGETS := $(patsubst %,%.exe${OBJ},$(TARGET))
 
-all: ${NEW_TARGETS} 
+
+all: ${NEW_TARGETS}
+
+
 
 %.od: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %.exe: %.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-%.exed: %.od
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+%.exed: %.od 
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+udp-send.exe$(OBJ): $(DEPS)
+
+udp-srv.exe$(OBJ): $(DEPS)
 
 clean:
 	-${RM} *.o *.od *~ *.exe *.exed
