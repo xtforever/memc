@@ -3,6 +3,7 @@
 adv-string
 a.out
 *.do
+*.od
 *.exe
 *.exed
 hashmap
