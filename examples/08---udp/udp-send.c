@@ -16,6 +16,31 @@
 #include <time.h>
 #include <errno.h>
 
+/* returns 0 on success, -1 on timeout or error */
+static int
+wait_for_udp(int fd)
+{
+	fd_set rfds;
+	struct timeval tv;
+	int retval;
+
+	/* Watch `fd` to see when it has input. */
+	FD_ZERO(&rfds);
+	FD_SET(fd, &rfds);
+
+	/* Wait up to one seconds. */
+	tv.tv_sec = 1;
+	tv.tv_usec = 0;
+
+	retval = select(fd + 1, &rfds, NULL, NULL, &tv);
+	if (retval > 0)
+		return 0;
+
+	if (retval == -1)
+		perror("select()");
+	return -1; /* error or timeout */
+}
+
 int main(int argc, char **argv)
 {
 	if( argc < 4 ) {
@@ -38,11 +63,13 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	int n=0;
 	#define BUFFER_SIZE 1400
 	char buffer[BUFFER_SIZE];
 	socklen_t addr_len = sizeof(server);
-	int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&server, &addr_len );			 
-	if (n < 0) {
+	
+	if( wait_for_udp(sockfd) || 
+	    (n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&server, &addr_len )) <= 0 ) {	     
 		perror("Receive failed");
 		close(sockfd);
 		exit(1);

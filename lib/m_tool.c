@@ -754,7 +754,7 @@ s_strcpy_c(int out, const char *s)
 {
 	
 	if( out <= 0 ) out = m_create(1,1);
-	if( !s || *s ) { m_putc(out,0); return out; }
+	if( !s || !*s ) { m_putc(out,0); return out; }
 	m_write(out,0,s,strlen(s)+1);
 	return out;
 }
