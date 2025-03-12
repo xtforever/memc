@@ -1,5 +1,5 @@
 debug_enable ?= 1
-TARGET=udp-send udp-srv
+TARGET=udp-send udp-srv parser
 CC=gcc
 CFLAGS_DEBUG=-ggdb -D_GNU_SOURCE -DMLS_DEBUG -O0 -Wall -fstack-protector-all -fsanitize=address
 CFLAGS_OPT=-D_GNU_SOURCE -Ofast -Wall -fdata-sections -ffunction-sections -Wl,--gc-sections
@@ -35,6 +35,10 @@ all: ${NEW_TARGETS}
 udp-send.exe$(OBJ): $(DEPS)
 
 udp-srv.exe$(OBJ): $(DEPS)
+
+parser.exe$(OBJ): $(DEPS)
+
+
 
 clean:
 	-${RM} *.o *.od *~ *.exe *.exed

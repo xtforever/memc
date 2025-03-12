@@ -11,11 +11,18 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <time.h>
 #include "mls.h"
 #include "m_tool.h"
+
+volatile sig_atomic_t CTRL_C = 0;
+void sigint_handler(int signum) {
+	CTRL_C=1;
+}
 
 
 /*
@@ -61,14 +68,28 @@
 */
 int p_word(int out, int buf, int *p, char *delim )
 {
+	int escaped = 0;
+	int in_quote = 0;
         int ch=0;
 	m_clear(out);
         while( *p < m_len(buf) && isspace(ch=CHAR(buf,*p)) ) { (*p)++; }
-        while( *p < m_len(buf) && !strchr( delim, ch=CHAR(buf,*p) ) && ch ) { m_putc(out,ch); (*p)++; }
-        m_putc(out,0);
+	while( *p < m_len(buf) ) {
+		ch=CHAR(buf,*p);	      
+		if (ch == '\\' && !escaped) {
+			escaped = 1;
+		} else if ( ch == '"' && !escaped) {
+			in_quote = !in_quote;
+		} else if (!in_quote && strchr(delim,ch) && !escaped) {
+			break;
+		} else {
+			m_putc(out,ch);
+			escaped = 0;
+		}
+		(*p)++;
+	}
+	m_putc(out,0);
         return ch;
 }
-
 
 #define BUF_SIZE 1000
 
@@ -97,13 +118,6 @@ int bsearch_int(int buf, int key)
 }
 
 
-void new_host(void *ent, void *unused )
-{
-	(void) unused;
-	struct host_db *h = ent;
-	h->keystore = m_create(2,sizeof(struct host_db));	
-}
-
 /* return ptr to array-entry that matches `key`, insert `key` if not found and
    call the new() function if defined.
    return: ptr to array-entry
@@ -121,6 +135,15 @@ void *m_lookup_int(int buf, int key, void (*new)(void *, void *), void *ctx )
 	return mls( buf,p );
 }
 
+/* if a new host is added we need to initialize it */
+void new_host(void *ent, void *unused )
+{
+	(void) unused;
+	struct host_db *h = ent;
+	h->keystore = m_create(2,sizeof(struct host_db));	
+}
+
+/* using generic lookup and host entry create funtion */
 int get_host(int tmp)
 {
 	if(!HOSTDB) { HOSTDB=m_create(10,sizeof(struct host_db)); }
@@ -128,22 +151,22 @@ int get_host(int tmp)
 	struct host_db *ent = m_lookup_int( HOSTDB, cs, new_host, NULL );
 	return ent->keystore;
 }
-	
+
+/* using generic lookup but no initializer */
 int store_keys(int keys, int k, int v)
 {
 	int cs = s_mstr(k); /* store key as constant */
 	struct keystore *ent = m_lookup_int(keys,cs,NULL,NULL);
-	ent->val = m_slice(ent->val,0, v,0,-1); /* overwrite val */
+	ent->val = m_slice(ent->val,0, v,0,-1); /* overwrite or create val */
 	return 0;
 }
 
-int reply_to(int sfd, int host)
+int reply_to(int host, int buf)
 {
 	TRACE(1,"");
-	int buf = m_create(100,1);
 	int p = bsearch_int( HOSTDB, s_mstr(host) );
 	if(p<0) {
-		s_printf(buf,0,"<EMPTY>\n" );
+		s_strcpy_c(buf,"<EMPTY>\n" );
 		return buf;
 	}
 	int cnt=0;
@@ -172,14 +195,13 @@ void cleanup(void)
 }
 
 
-static int msg_client( int sfd, char *host, int buf )
+static int msg_client( int buf, int reply )
 {
 	int ret = 0;
-	if( ! host ) { return ret; }
-
 	int tmp1 = m_create(100,1);
 	int tmp2 = m_create(100,1);
-
+	m_clear(reply);
+	
 	/* get first param */
 	int pos = 0;
 	p_word( tmp1, buf, &pos, " \t" );
@@ -189,7 +211,7 @@ static int msg_client( int sfd, char *host, int buf )
 	/* opt. get second param */
 	int ch = p_word( tmp2, buf, &pos, " \t=*" );
 	if( m_len(tmp2) < 2 ) {
-		if( ch == '*' ) ret = reply_to(sfd,tmp1);
+		if( ch == '*' ) reply_to(tmp1, reply);
 		goto fin;
 	}
 	if( ch != '=' ) goto fin;
@@ -212,7 +234,7 @@ static int msg_client( int sfd, char *host, int buf )
 	}
 	m_free(k);
 	m_free(v);
-	ret = s_printf(0,0, "<OK>\n");
+	s_strcpy_c(reply, "<OK>\n" );
 	
 	fin:
 	m_free(tmp1);
@@ -221,14 +243,14 @@ static int msg_client( int sfd, char *host, int buf )
 }
 
 
+/* returns 0 on success, -1 on timeout or error */
 int wait_for_udp(int fd)
 {
   fd_set rfds;
   struct timeval tv;
   int retval;
 
-  /* Watch stdin (fd 0) to see when it has input. */
-
+  /* Watch `fd` to see when it has input. */
   FD_ZERO(&rfds);
   FD_SET(fd, &rfds);
 
@@ -237,11 +259,11 @@ int wait_for_udp(int fd)
   tv.tv_usec = 0;
 
   retval = select(fd+1, &rfds, NULL, NULL, &tv);
+  if( retval > 0 ) return 0;
+  
   if (retval == -1)
     perror("select()");
-  else if (retval)
-    return 0;
-  return 1;
+  return -1; /* error or timeout */
 }
 
 
@@ -284,8 +306,9 @@ int main(int argc, char *argv[])
 	conststr_init();
 	m_register_printf();
 	trace_level=1;
-
-           memset(&hints, 0, sizeof(struct addrinfo));
+	int reply=m_create(50,1);
+	
+	memset(&hints, 0, sizeof(struct addrinfo));
            hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
            hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
            hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
@@ -327,7 +350,7 @@ int main(int argc, char *argv[])
            /* Read datagrams and echo them back to sender */
 
 	   int hbuf = m_create(BUF_SIZE,1);
-           for (;;) {
+           for (; !CTRL_C;) {
                peer_addr_len = sizeof(struct sockaddr_storage);
                if( wait_for_udp( sfd ) != 0 ||
                    (nread=recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
@@ -335,8 +358,10 @@ int main(int argc, char *argv[])
                  {
                    continue;
                  }
-	       m_setlen(hbuf,nread);	       
 	       
+	       m_setlen(hbuf,nread);
+
+	       /*
                char host[NI_MAXHOST], service[NI_MAXSERV];
 	       s = getnameinfo((struct sockaddr *) &peer_addr,
                                peer_addr_len, host, NI_MAXHOST,
@@ -347,15 +372,16 @@ int main(int argc, char *argv[])
                }
                else
                    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(s));
-
-	       int reply = msg_client(sfd,host,hbuf);
-	       if( reply > 0 ) {
+	       */
+	       
+	       msg_client(hbuf, reply);
+	       if( m_len(reply) ) {
 		       sendto(sfd, m_buf(reply), m_len(reply), 0, 
 			      (struct sockaddr *) &peer_addr, peer_addr_len);
-		       m_free(reply);
 	       }
            }
-	   
+
+	   m_free(reply);
 	   cleanup();
 	   conststr_free();
 	   m_destruct();
