@@ -1412,6 +1412,57 @@ int m_lookup_str(int m, const char *key, int NOT_INSERT) {
   return p;
 }
 
+
+/* binary search/insert functions for lists where the first element is integer sortable */
+int
+cmp_int(const void *a0, const void *b0)
+{
+	const int *a = a0;
+	const int *b = b0;
+	return (*a) - (*b);
+}
+
+
+int
+m_binsert_int(int buf, int key)
+{
+	return m_blookup_int(buf,key,NULL,NULL);
+}
+
+int
+m_bsearch_int(int buf, int key)
+{
+	return m_bsearch(&key, buf, cmp_int);
+}
+
+/* return pos of array-entry that matches `key`, insert `key` if not found and
+   call the new() function if defined.
+*/
+int
+m_blookup_int(int buf, int key, void (*new)(void *, void *), void *ctx)
+{
+	void *obj = calloc(1, m_width(buf));
+	*(int *)obj = key;
+	int p = m_binsert(buf, obj, cmp_int, 0);
+	free(obj);
+	if (p < 0) { /* entry exists */
+		return (-p) - 1;
+	}
+	if (new)
+		new (mls(buf, p), ctx);
+	return p;
+}
+
+void*   m_blookup_int_p(int buf, int key, void (*new)(void *, void *), void *ctx)
+{
+	return mls(buf, m_blookup_int(buf,key,new,ctx));	
+}
+
+
+
+
+
+
 // ***********
 //  VARIABLES
 // ***********

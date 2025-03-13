@@ -306,6 +306,13 @@ static inline int s_empty(int m)
 
 
 
+/* binary search/insert functions for lists where the first element is integer sortable */
+	int cmp_int(const void *a0, const void *b0);	
+	int m_binsert_int(int buf, int key); // m_blookup_int
+	int m_bsearch_int(int buf, int key); // m_bsearch
+	    int m_blookup_int(int buf, int key, void (*new)(void *, void *), void *ctx);
+	void* m_blookup_int_p(int buf, int key, void (*new)(void *, void *), void *ctx);
+	
 enum {
   VAR_APPEND = -1,
   VAR_RENAME = 0,

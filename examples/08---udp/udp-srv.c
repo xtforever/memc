@@ -104,40 +104,6 @@ struct host_db {
 
 static int HOSTDB = 0;
 
-int
-binsert_int(int buf, int key)
-{
-	void *obj = calloc(1, m_width(buf));
-	*(int *)obj = key;
-	int ret = m_binsert(buf, obj, cmp_int, 0);
-	free(obj);
-	return ret;
-}
-
-int
-bsearch_int(int buf, int key)
-{
-	return m_bsearch(&key, buf, cmp_int);
-}
-
-/* return ptr to array-entry that matches `key`, insert `key` if not found and
-   call the new() function if defined.
-   return: ptr to array-entry
-*/
-void *
-m_lookup_int(int buf, int key, void (*new)(void *, void *), void *ctx)
-{
-	void *obj = calloc(1, m_width(buf));
-	*(int *)obj = key;
-	int p = m_binsert(buf, obj, cmp_int, 0);
-	free(obj);
-	if (p < 0) { /* entry exists */
-		return mls(buf, (-p) - 1);
-	}
-	if (new)
-		new (mls(buf, p), ctx);
-	return mls(buf, p);
-}
 
 /* if a new host is added we need to initialize it */
 void
@@ -156,7 +122,7 @@ get_host(int tmp)
 		HOSTDB = m_create(10, sizeof(struct host_db));
 	}
 	int cs = s_mstr(tmp); /* store hostname as const */
-	struct host_db *ent = m_lookup_int(HOSTDB, cs, new_host, NULL);
+	struct host_db *ent = m_blookup_int_p(HOSTDB, cs, new_host, NULL);
 	return ent->keystore;
 }
 
@@ -165,7 +131,7 @@ int
 store_keys(int keys, int k, int v)
 {
 	int cs = s_mstr(k); /* store key as constant */
-	struct keystore *ent = m_lookup_int(keys, cs, NULL, NULL);
+	struct keystore *ent = m_blookup_int_p(keys, cs, NULL, NULL);
 	ent->val = m_slice(ent->val, 0, v, 0, -1); /* overwrite or create val */
 	return 0;
 }
@@ -174,7 +140,7 @@ int
 reply_to(int host, int buf)
 {
 	TRACE(1, "");
-	int p = bsearch_int(HOSTDB, s_mstr(host));
+	int p = m_bsearch_int(HOSTDB, s_mstr(host));
 	if (p < 0) {
 		s_strcpy_c(buf, "<EMPTY>\n");
 		return buf;
@@ -184,7 +150,7 @@ reply_to(int host, int buf)
 	struct keystore *key;
 	m_foreach(hh->keystore, p, key)
 	{
-		s_printf(buf, cnt, "%s=%s ", m_str(key->key), m_str(key->val));
+		s_printf(buf, cnt, "%s=\"%s\"\n", m_str(key->key), m_str(key->val));
 		cnt = m_len(buf) - 1;
 	}
 	return buf;
@@ -215,41 +181,47 @@ msg_client(int buf, int reply)
 
 	/* get first param */
 	int pos = 0;
-	p_word(tmp1, buf, &pos, " \t");
+	p_word(tmp1, buf, &pos, " \t\n\r");
 	int p = pos;
-	if (m_len(tmp1) < 2)
+	if (m_len(tmp1) < 2) {
+		WARN("error parsing hostname");
 		goto fin;
+	}
 
 	/* opt. get second param */
-	int ch = p_word(tmp2, buf, &pos, " \t=*");
+	int ch = p_word(tmp2, buf, &pos, " \t\n\r=*");
 	if (m_len(tmp2) < 2) {
 		if (ch == '*')
 			reply_to(tmp1, reply);
+		else
+			WARN("error parsing 2nd parameter");
 		goto fin;
 	}
-	if (ch != '=')
-		goto fin;
+	if (ch != '=') {
+		 WARN("error 2nd parameter not k=v");
+		 goto fin;
+	}
 
 	/* we have at least two parameters, lets reset and try to parse
 	 * key=value pairs */
 	/* start at p */
-
 	int keys = 0;
 	int k, v;
 	k = m_create(10, 1);
 	v = m_create(10, 1);
-	while (1) {
+	while ( p < m_len(buf) ) {
 		ch = p_word(k, buf, &p, "=");
 		if (ch != '=')
 			break;
 		p++; /* skip delimeter */
-		ch = p_word(v, buf, &p, " \t");
-		if (m_len(v) < 2)
+		ch = p_word(v, buf, &p, " \t\n\r");
+		if (m_len(v) < 2) /* need more than a zero */
 			break;
 		if (!keys) {
 			keys = get_host(tmp1);
 		}
 		store_keys(keys, k, v);
+		p++; /* skip delimeter */
 	}
 	m_free(k);
 	m_free(v);
@@ -286,15 +258,50 @@ wait_for_udp(int fd)
 	return -1; /* error or timeout */
 }
 
+int bind_to(const char *hostname, struct addrinfo *hints )
+{
+	struct addrinfo *result, *rp;
+	int sfd;
+	int s = getaddrinfo(NULL, hostname, hints, &result);
+	if (s != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+		return -1;
+	}
+
+	/* getaddrinfo() returns a list of address structures.
+	   Try each address until we successfully bind(2).
+	   If socket(2) (or bind(2)) fails, we (close the socket
+	   and) try the next address. */
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sfd == -1)
+			continue;
+
+		if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
+			break; /* Success */
+
+		close(sfd);
+	}
+	freeaddrinfo(result); /* No longer needed */
+	
+	if (rp == NULL) { /* No address succeeded */
+		fprintf(stderr, "Could not bind\n");
+		return -1;
+	}
+
+	return sfd; // success
+};
+
+
 int
 main(int argc, char *argv[])
 {
-	struct addrinfo hints;
-	struct addrinfo *result, *rp;
-	int sfd, s;
+	int sfd;
 	struct sockaddr_storage peer_addr;
-	socklen_t peer_addr_len;
+	struct addrinfo hints;
 	ssize_t nread;
+	socklen_t peer_addr_len = sizeof(struct sockaddr_storage);
+	int ret = EXIT_SUCCESS;
 	signal(SIGINT, sigint_handler);
 
 #if 0
@@ -325,6 +332,7 @@ main(int argc, char *argv[])
 	m_register_printf();
 	trace_level = 1;
 	int reply = m_create(50, 1);
+	int hbuf = m_create(BUF_SIZE, 1);
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
@@ -335,40 +343,13 @@ main(int argc, char *argv[])
 	hints.ai_addr = NULL;
 	hints.ai_next = NULL;
 
-	s = getaddrinfo(NULL, argv[1], &hints, &result);
-	if (s != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
-		exit(EXIT_FAILURE);
-	}
-
-	/* getaddrinfo() returns a list of address structures.
-	   Try each address until we successfully bind(2).
-	   If socket(2) (or bind(2)) fails, we (close the socket
-	   and) try the next address. */
-
-	for (rp = result; rp != NULL; rp = rp->ai_next) {
-		sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-		if (sfd == -1)
-			continue;
-
-		if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0)
-			break; /* Success */
-
-		close(sfd);
-	}
-
-	if (rp == NULL) { /* No address succeeded */
-		fprintf(stderr, "Could not bind\n");
-		exit(EXIT_FAILURE);
-	}
-
-	freeaddrinfo(result); /* No longer needed */
-
-	/* Read datagrams and echo them back to sender */
-
-	int hbuf = m_create(BUF_SIZE, 1);
+	if( (sfd = bind_to(argv[1],&hints)) < 0 ) {
+		ret = EXIT_FAILURE;
+		goto cleanup;
+	};
+	
+	/* Read datagrams and reply to them back to sender */
 	for (; !CTRL_C;) {
-		peer_addr_len = sizeof(struct sockaddr_storage);
 		if (wait_for_udp(sfd) != 0
 		    || (nread = recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
 		                         (struct sockaddr *)&peer_addr,
@@ -376,22 +357,7 @@ main(int argc, char *argv[])
 		           <= 0) {
 			continue;
 		}
-
 		m_setlen(hbuf, nread);
-
-		/*
-		char host[NI_MAXHOST], service[NI_MAXSERV];
-		s = getnameinfo((struct sockaddr *) &peer_addr,
-		                peer_addr_len, host, NI_MAXHOST,
-		                service, NI_MAXSERV, NI_NUMERICSERV);
-		if (s == 0) {
-		        printf("Received %zd bytes from %s:%s\n",
-		               nread, host, service);
-		}
-		else
-		    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(s));
-		*/
-
 		msg_client(hbuf, reply);
 		if (m_len(reply)) {
 			s_puts(reply);
@@ -399,9 +365,13 @@ main(int argc, char *argv[])
 			       (struct sockaddr *)&peer_addr, peer_addr_len);
 		}
 	}
-
+	close(sfd);
+	
+cleanup:
+	m_free(hbuf);
 	m_free(reply);
 	cleanup();
 	conststr_free();
 	m_destruct();
+	return ret;
 }
