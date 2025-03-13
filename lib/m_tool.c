@@ -15,7 +15,7 @@ mls_printf_handler(FILE *stream, const struct printf_info *info,
 	// Extract the argument as a "mls" type
 	const int p = *((const int *)args[0]);
 	// Convert mls Handle to String
-	const char *s = mls(p, 0);
+	const char *s = p > 0 ? mls(p, 0) : "";
 	char *o, out[50];
 	o = out;
 	*o++ = '%';
@@ -324,6 +324,7 @@ m_clear_user(int m, void (*free_h)(void *))
 void
 m_free_list(int m)
 {
+	if(!m) return;
 	if( m_width(m) < sizeof(int) ) {
 		ERR("expected array of handles/int but list %d has width %d",
 		    m, m_width(m) );
@@ -855,6 +856,11 @@ int cmp_mstr_cstr_fast(const void *key, const void *b)
 	return -mstrcmp(mstr, 0, *s);	
 }
 
+int s_strcmp_c( int mstr, const char *s )
+{
+	return mstrcmp(mstr, 0, s);
+}
+
 static int
 mscmpc(const void *a, const void *b)
 {
@@ -984,14 +990,19 @@ s_strncmpr(int str, int suffix)
 	return s_strncmp2(str, lenstr - lensuffix, suffix, 0, lensuffix) == 0;
 }
 
+
+/* read a line of text
+   this function must be called once, after all data is read, to find the eof.
+   if the last line is terminated by eof this function returns success!
+   returns: 0 - success, -1 no more data
+*/
 int
 s_readln(int buf, FILE *fp)
 {
 	m_clear(buf);
 	int ret = m_fscan(buf, 10, fp);
-	if (ret < 0 && m_len(buf) > 1)
-		return 0;
-	return ret;
+	if( ret < 0 && m_len(buf) <= 1 ) return -1;	
+	return 0;
 }
 
 int
