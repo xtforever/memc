@@ -104,7 +104,6 @@ struct host_db {
 
 static int HOSTDB = 0;
 
-
 /* if a new host is added we need to initialize it */
 void
 new_host(void *ent, void *unused)
@@ -150,7 +149,8 @@ reply_to(int host, int buf)
 	struct keystore *key;
 	m_foreach(hh->keystore, p, key)
 	{
-		s_printf(buf, cnt, "%s=\"%s\"\n", m_str(key->key), m_str(key->val));
+		s_printf(buf, cnt, "%s=\"%s\"\n", m_str(key->key),
+		         m_str(key->val));
 		cnt = m_len(buf) - 1;
 	}
 	return buf;
@@ -198,8 +198,8 @@ msg_client(int buf, int reply)
 		goto fin;
 	}
 	if (ch != '=') {
-		 WARN("error 2nd parameter not k=v");
-		 goto fin;
+		WARN("error 2nd parameter not k=v");
+		goto fin;
 	}
 
 	/* we have at least two parameters, lets reset and try to parse
@@ -209,7 +209,7 @@ msg_client(int buf, int reply)
 	int k, v;
 	k = m_create(10, 1);
 	v = m_create(10, 1);
-	while ( p < m_len(buf) ) {
+	while (p < m_len(buf)) {
 		ch = p_word(k, buf, &p, "=");
 		if (ch != '=')
 			break;
@@ -258,7 +258,8 @@ wait_for_udp(int fd)
 	return -1; /* error or timeout */
 }
 
-int bind_to(const char *hostname, struct addrinfo *hints )
+int
+bind_to(const char *hostname, struct addrinfo *hints)
 {
 	struct addrinfo *result, *rp;
 	int sfd;
@@ -283,7 +284,7 @@ int bind_to(const char *hostname, struct addrinfo *hints )
 		close(sfd);
 	}
 	freeaddrinfo(result); /* No longer needed */
-	
+
 	if (rp == NULL) { /* No address succeeded */
 		fprintf(stderr, "Could not bind\n");
 		return -1;
@@ -292,62 +293,39 @@ int bind_to(const char *hostname, struct addrinfo *hints )
 	return sfd; // success
 };
 
-
 int
 main(int argc, char *argv[])
 {
-	int sfd;
-	struct sockaddr_storage peer_addr;
-	struct addrinfo hints;
-	ssize_t nread;
-	socklen_t peer_addr_len = sizeof(struct sockaddr_storage);
 	int ret = EXIT_SUCCESS;
-	signal(SIGINT, sigint_handler);
-
-#if 0
-	m_init();
-	conststr_init();
-	m_register_printf();
-	trace_level=1;
-	int buf = s_printf(0,0, "t1 a=7" );
-	msg_client(1,"",buf);
-	s_printf(buf,0, "t1 a=7 b=9" );
-	msg_client(1,"",buf);
-	s_printf(buf,0, "t1 *" );
-	msg_client(1,"",buf);
-	cleanup();
-	conststr_free();
-	m_destruct();
-	
-	exit(0);
-#endif
-
+	int sfd;
+	ssize_t nread;
+	struct addrinfo hints;
+	socklen_t peer_addr_len;
+	struct sockaddr_storage peer_addr;
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s port\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
-
+	
+	signal(SIGINT, sigint_handler);
 	m_init();
 	conststr_init();
 	m_register_printf();
 	trace_level = 1;
 	int reply = m_create(50, 1);
 	int hbuf = m_create(BUF_SIZE, 1);
+	hints = (struct addrinfo){
+		.ai_family = AF_UNSPEC,    /* Allow IPv4 or IPv6 */
+		.ai_socktype = SOCK_DGRAM, /* Datagram socket */
+		.ai_flags = AI_PASSIVE,    /* For wildcard IP address */
+		.ai_protocol = 0,          /* Any protocol */
+	};
 
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-	hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-	hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-	hints.ai_protocol = 0;          /* Any protocol */
-	hints.ai_canonname = NULL;
-	hints.ai_addr = NULL;
-	hints.ai_next = NULL;
-
-	if( (sfd = bind_to(argv[1],&hints)) < 0 ) {
+	if ((sfd = bind_to(argv[1], &hints)) < 0) {
 		ret = EXIT_FAILURE;
 		goto cleanup;
 	};
-	
+
 	/* Read datagrams and reply to them back to sender */
 	for (; !CTRL_C;) {
 		if (wait_for_udp(sfd) != 0
@@ -366,7 +344,7 @@ main(int argc, char *argv[])
 		}
 	}
 	close(sfd);
-	
+
 cleanup:
 	m_free(hbuf);
 	m_free(reply);
