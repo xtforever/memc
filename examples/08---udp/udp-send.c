@@ -52,7 +52,7 @@ main(int argc, char **argv)
 	const char *srv = argv[1];
 	const char *port = argv[2];
 	const char *msg = argv[3];
-
+	
 	int ret = EXIT_FAILURE;
 	int s,n = -1;
 	struct addrinfo *result, *p, hints;
@@ -70,7 +70,7 @@ main(int argc, char **argv)
 		if( s == -1 ) continue;
 		n = sendto(s, msg, strlen(msg), 0, p->ai_addr, p->ai_addrlen);
 		if( n != -1 ) break; // success
-		close(s);
+		close(s); // close stream if sendto doesnt work and retry 
 	}
 	if( n == -1 ) {
 		perror( "sendto error" );
