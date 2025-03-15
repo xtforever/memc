@@ -299,7 +299,6 @@ main(int argc, char *argv[])
 	int ret = EXIT_SUCCESS;
 	int sfd;
 	ssize_t nread;
-	struct addrinfo hints;
 	socklen_t peer_addr_len;
 	struct sockaddr_storage peer_addr;
 	if (argc != 2) {
@@ -314,7 +313,7 @@ main(int argc, char *argv[])
 	trace_level = 1;
 	int reply = m_create(50, 1);
 	int hbuf = m_create(BUF_SIZE, 1);
-	hints = (struct addrinfo){
+	struct addrinfo hints = {
 		.ai_family = AF_UNSPEC,    /* Allow IPv4 or IPv6 */
 		.ai_socktype = SOCK_DGRAM, /* Datagram socket */
 		.ai_flags = AI_PASSIVE,    /* For wildcard IP address */
