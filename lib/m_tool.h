@@ -51,7 +51,6 @@ int s_strncmp(int m,int offs,int pattern, int n);
 void s_write(int m,int n);
 int s_isempty(int m);
 int s_strdup_c(const char *s);
-int s_strcpy_c(int out, const char *s);
 int s_trim(int m);
 int s_lower(int m);
 int s_upper(int m);
@@ -62,7 +61,6 @@ void m_map( int m, int (*fn) ( int m, int p, void *ctx ), void *ctx  );
 int  m_memset(int ln, char c, int w); 
 int s_strncmp2(int s0, int p0, int s1, int p1, int len);
 int s_strncmpr(int str, int suffix);
-
 int s_readln(int buf, FILE *fp);
 int s_regex(int res, char *regex, int buf);
 bool glob_match(char const *pat, char const *str, const char **a, const char **b) __attribute__((const));

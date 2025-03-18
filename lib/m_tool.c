@@ -413,6 +413,13 @@ leftstr(int buf, int p, const char *s, int ch)
 	return buf;
 }
 
+int
+cmp_int(const void *a0, const void *b0)
+{
+	const int *a = a0;
+	const int *b = b0;
+	return (*a) - (*b);
+}
 
 /* einfuegen von key in das array m falls key noch nicht
    existiert
@@ -741,18 +748,6 @@ m_map(int m, int (*fn)(int m, int p, void *ctx), void *ctx)
 	for (int i = 0; i < n; i++)
 		fn(m, i, ctx);
 }
-
-
-int
-s_strcpy_c(int out, const char *s)
-{
-	
-	if( out <= 0 ) out = m_create(1,1);
-	if( !s || !*s ) { m_putc(out,0); return out; }
-	m_write(out,0,s,strlen(s)+1);
-	return out;
-}
-
 
 int
 s_strdup_c(const char *s)
