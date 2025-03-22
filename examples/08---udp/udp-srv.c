@@ -135,25 +135,24 @@ store_keys(int keys, int k, int v)
 	return 0;
 }
 
-int
-reply_to(int host, int buf)
+void
+reply_to(int host, int reply)
 {
 	TRACE(1, "");
 	int p = m_bsearch_int(HOSTDB, s_mstr(host));
 	if (p < 0) {
-		s_strcpy_c(buf, "<EMPTY>\n");
-		return buf;
+		m_puti(reply,s_strdup_c("<OK>\n"));
+		return;
 	}
-	int cnt = 0;
 	struct host_db *hh = mls(HOSTDB, p);
 	struct keystore *key;
 	m_foreach(hh->keystore, p, key)
 	{
-		s_printf(buf, cnt, "%s=\"%s\"\n", m_str(key->key),
-		         m_str(key->val));
-		cnt = m_len(buf) - 1;
+		int str = s_printf(0,0, "%s=\"%s\"\n", m_str(key->key),
+				   m_str(key->val));
+		m_puti(reply,str);
 	}
-	return buf;
+	return;
 }
 
 void
@@ -177,7 +176,6 @@ msg_client(int buf, int reply)
 	int ret = 0;
 	int tmp1 = m_create(100, 1);
 	int tmp2 = m_create(100, 1);
-	m_clear(reply);
 
 	/* get first param */
 	int pos = 0;
@@ -225,8 +223,7 @@ msg_client(int buf, int reply)
 	}
 	m_free(k);
 	m_free(v);
-	s_strcpy_c(reply, "<OK>\n");
-
+	m_puti(reply,s_strdup_c("<OK>\n"));
 fin:
 	m_free(tmp1);
 	m_free(tmp2);
@@ -299,8 +296,9 @@ main(int argc, char *argv[])
 	int ret = EXIT_SUCCESS;
 	int sfd;
 	ssize_t nread;
-	socklen_t peer_addr_len;
 	struct sockaddr_storage peer_addr;
+	socklen_t peer_addr_len = sizeof(peer_addr);
+
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s port\n", argv[0]);
 		exit(EXIT_FAILURE);
@@ -311,7 +309,7 @@ main(int argc, char *argv[])
 	conststr_init();
 	m_register_printf();
 	trace_level = 1;
-	int reply = m_create(50, 1);
+	int reply = m_create(50, sizeof(int));
 	int hbuf = m_create(BUF_SIZE, 1);
 	struct addrinfo hints = {
 		.ai_family = AF_UNSPEC,    /* Allow IPv4 or IPv6 */
@@ -325,28 +323,38 @@ main(int argc, char *argv[])
 		goto cleanup;
 	};
 
-	/* Read datagrams and reply to them back to sender */
+	/* Read datagrams and reply to sender */
 	for (; !CTRL_C;) {
-		if (wait_for_udp(sfd) != 0
-		    || (nread = recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
-		                         (struct sockaddr *)&peer_addr,
-		                         &peer_addr_len))
-		           <= 0) {
-			continue;
-		}
+		if( wait_for_udp(sfd) ) continue;
+		nread = recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
+				 (struct sockaddr *)&peer_addr,
+				 &peer_addr_len);
+		if( nread <=0 ) continue;
 		m_setlen(hbuf, nread);
 		msg_client(hbuf, reply);
-		if (m_len(reply)) {
-			s_puts(reply);
-			sendto(sfd, m_buf(reply), m_len(reply), 0,
-			       (struct sockaddr *)&peer_addr, peer_addr_len);
+		/* send reply, using peer_addr */
+		m_clear(hbuf);
+		m_puti(reply,s_strdup_c("\n"));
+		int p=0,lns = m_len(reply);		
+		int d=INT(reply,0);
+		while( p<lns ) {
+			p++;
+			m_slice( hbuf, m_len(hbuf), d, 0, -2 );
+			// kein weiterer oder der naechste passt nicht dann absenden
+			if( p >= lns || (m_len(d=INT(reply,p))+m_len(hbuf)>=BUF_SIZE))  {
+				int err = sendto(sfd, m_buf(hbuf), m_len(hbuf), 0,
+				       (struct sockaddr *)&peer_addr, peer_addr_len);
+				if( err < 0 ) perror("error sending reply");
+				m_clear(hbuf);
+			}
 		}
+		m_clear_list(reply);
 	}
 	close(sfd);
 
 cleanup:
 	m_free(hbuf);
-	m_free(reply);
+	m_free_list(reply);
 	cleanup();
 	conststr_free();
 	m_destruct();

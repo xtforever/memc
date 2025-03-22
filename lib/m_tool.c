@@ -742,7 +742,6 @@ m_map(int m, int (*fn)(int m, int p, void *ctx), void *ctx)
 		fn(m, i, ctx);
 }
 
-
 int
 s_strcpy_c(int out, const char *s)
 {
@@ -757,16 +756,7 @@ s_strcpy_c(int out, const char *s)
 int
 s_strdup_c(const char *s)
 {
-	if (s == NULL) {
-		int v = m_create(1, 1);
-		m_putc(v, 0);
-		return v;
-	}
-
-	int len = strlen(s) + 1;
-	int v = m_create(len, 1);
-	m_write(v, 0, s, len);
-	return v;
+	return s_strcpy_c(0,s);
 }
 
 int
