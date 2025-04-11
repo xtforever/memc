@@ -752,6 +752,13 @@ s_strcpy_c(int out, const char *s)
 	return out;
 }
 
+int
+s_strcmp_c(int s0,int offs, const char *s1)
+{
+	if( s0 == 0 || m_len(s0) <= offs ) return -1;
+	return mstrcmp(s0,offs,s1);	
+}
+
 
 int
 s_strdup_c(const char *s)
