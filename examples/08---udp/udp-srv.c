@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <time.h>
 
+const char *default_db = "db.dat";
+
 volatile sig_atomic_t CTRL_C = 0;
 void
 sigint_handler(int signum)
@@ -63,6 +65,7 @@ sigint_handler(int signum)
 
 /* copy characters from buf[p..] to out until one of *delim is found
    returns: last parsed character
+   leading spaces are ignored
    out will be a zero terminated string
    parsed word will be appended to out
 */
@@ -153,7 +156,7 @@ reply_to(int host, int buf)
 	struct keystore *key;
 	m_foreach(hh->keystore, p, key)
 	{
-		s_printf(buf, cnt, "%s=\"%s\"\n", m_str(key->key),
+		s_printf(buf, cnt,  "\"%s\"  \"%s\"\n", m_str(key->key),
 		         m_str(key->val));
 		cnt = m_len(buf) - 1;
 	}
@@ -177,7 +180,7 @@ reply_single(int host, int key, int buf)
 		return buf;
 	}
 	struct keystore *keys = mls(hh->keystore, p);
-	s_printf(buf, 0, "%s=\"%s\"\n", m_str(keys->key), m_str(keys->val));
+	s_printf(buf, 0, "\"%s\"  \"%s\"\n", m_str(keys->key), m_str(keys->val));
 	return buf;
 }
 
@@ -196,10 +199,11 @@ cleanup(void)
 	HOSTDB = 0;
 }
 
-void save_database(void)
+void save_database( int fn  )
 {
-	FILE *fp=fopen("db.dat", "wb" );
-	if(!fp) ERR("could not create db.dat");
+	const char *name = s_isempty(fn) ? default_db : m_str(fn);	
+	FILE *fp=fopen( name, "wb" );
+	if(!fp) ERR("could not create %s", name );
 	int p1, p2;
 	struct keystore *key;
 	struct host_db *hh;
@@ -225,9 +229,10 @@ int merge_database(int fn)
 	while( ! feof(fp) ) {
 		int r = fscanf(fp, "%ms %lld %ms \"%m[^\"]\"",
 			       &id, &number, &code, &quoted_value);
-		if( r != 4 ) continue;		
+		if( r != 4 ) continue;
 		int keys = get_host( s_cstr(id) );
 		int cs = s_cstr(code); /* store key as constant */
+		printf("MERGE KEY '%s' Id=%d\n", code, cs );
 		struct keystore *ent = m_blookup_int_p(keys, cs, NULL, NULL);
 		if( number > ent->stamp ) {
 			ent->stamp = number;
@@ -238,7 +243,8 @@ int merge_database(int fn)
 		free(code);
 		free(quoted_value);
 	}
-	fclose(fp);	
+	fclose(fp);
+	conststr_stats();
 	return 0;
 }
 
@@ -246,7 +252,7 @@ int load_database(void)
 {
 	cleanup();
 	HOSTDB = m_create(10, sizeof(struct host_db));
-	return merge_database( s_cstr("db.dat") );
+	return merge_database( s_cstr( default_db ) );
 }
 
 
@@ -269,13 +275,14 @@ msg_client(int buf, int reply)
 	}
 
 	if( s_strcmp_c(tmp1,0,":SAVE") == 0 ) {
-		save_database();
+		p_word(tmp2,buf,&pos, "\n" );
+		save_database( tmp2 );
 		goto fin_ok;
 	}
 	
 	if( s_strcmp_c(tmp1,0,":LOAD") == 0 ) {
 		p_word(tmp2,buf,&pos, "\n" );
-		if(! merge_database(tmp2) ) 	goto fin_ok;
+		if(! merge_database(tmp2) ) goto fin_ok;
 		s_printf(reply,0,"<ERROR LOADING '%M'>\n",tmp2 );
 		goto fin;
 	}
@@ -430,6 +437,8 @@ main(int argc, char *argv[])
 	conststr_init();
 	m_register_printf();
 	trace_level = 1;
+	load_database();
+	
 	int reply = m_create(50, 1);
 	int hbuf = m_create(BUF_SIZE, 1);
 

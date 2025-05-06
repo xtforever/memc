@@ -515,7 +515,7 @@ s_isempty(int m)
 		WARN("handle is zero");
 	else {
 		if (m_len(m) == 0)
-			WARN("strlen  is zero");
+			; // WARN("strlen  is zero");
 		else {
 			if (CHAR(m, m_len(m) - 1))
 				WARN("last byte not zero");
@@ -907,6 +907,13 @@ conststr_lookup(int s)
 int
 conststr_lookup_c(const char *s)
 {
+	int n=strlen(s);
+	int v = m_create(n,1);
+	m_write(v,0,s,n+1);
+	int ret = conststr_lookup(v);
+	m_free(v);
+	return ret;
+		
 	if (is_empty(s))
 		return CS_ZERO;
 	union {
@@ -955,7 +962,7 @@ conststr_stats(void)
 	int cnt = m_len(CONSTSTR_DATA);
 	TRACE(4, "Count: %d", cnt);
 	len = cnt * (sizeof(int) + sizeof(struct ls_st));
-	m_foreach(CONSTSTR_DATA, p, d) { len += m_len(*d); }
+	m_foreach(CONSTSTR_DATA, p, d) { TRACE(1, "%d %s\n",p,m_str(*d)); len += m_len(*d); }
 	TRACE(4, "Memory: %d", len);
 }
 
