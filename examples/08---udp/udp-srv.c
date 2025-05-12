@@ -258,54 +258,61 @@ int load_database(void)
 // host key=value
 // host *
 // host key
-//
+// :CMD param
 static int
 msg_client(int buf, int reply)
 {
+	int pos = 0, p;
+	int ch;
 	int ret = 0;
 	int tmp1 = m_create(100, 1);
 	int tmp2 = m_create(100, 1);
 	m_clear(reply);
 
 	/* get first param */
-	int pos = 0;
-	p_word(tmp1, buf, &pos, " \t\n\r");
-	
-	int p = pos;
+	ch = p_word(tmp1, buf, &pos, " ");
 	if (m_len(tmp1) < 2) {
 		WARN("error parsing hostname");
-		s_strcpy_c(reply, "ERR\nSYNTAX ERROR: hostname not found\n");
+		s_strcpy_c(reply, "ERR\nSYNTAX ERROR: missing hostname\n");
+		goto fin;
+	}
+	
+	p=pos; // save parser position for key=value parser
+	ch = p_word(tmp2, buf, &pos, " *=\n\r");
+
+	/* if it is a command, execute function */
+	if( CHAR(tmp1,0) == ':' ) {
+		if( s_strcmp_c(tmp1,0,":SAVE") == 0 ) {
+			save_database( tmp2 );
+			goto fin_ok;
+		}
+	
+		if( s_strcmp_c(tmp1,0,":LOAD") == 0 ) {
+			if(! merge_database(tmp2) ) goto fin_ok;
+			s_printf(reply,0,"ERR\ncan not load '%M'\n",tmp2 );
+			goto fin;
+		}
+
+		s_printf(reply,0,"ERR\nunkown command '%M'\n",tmp1 );
 		goto fin;
 	}
 
-	if( s_strcmp_c(tmp1,0,":SAVE") == 0 ) {
-		p_word(tmp2,buf,&pos, "\n" );
-		save_database( tmp2 );
-		goto fin_ok;
-	}
-	
-	if( s_strcmp_c(tmp1,0,":LOAD") == 0 ) {
-		p_word(tmp2,buf,&pos, "\n" );
-		if(! merge_database(tmp2) ) goto fin_ok;
-		s_printf(reply,0,"ERR\ncan not load '%M'\n",tmp2 );
-		goto fin;
-	}
-	
-	/* opt. get second param */
-	int ch = p_word(tmp2, buf, &pos, " \t\n\r=*");
-	if (m_len(tmp2) < 2) {
-		if (ch == '*')
+	/* no argument, either '*' or error */
+	if( m_len(tmp2) < 2 ) {
+		if( ch == '*' ) {
 			reply_to(tmp1, reply);
-		else
-			WARN("error parsing 2nd parameter");
+		} else {
+			s_strcpy_c(reply, "ERR\nSYNTAX ERROR: expected key\n");
+		}
 		goto fin;
 	}
-
-	if (ch != '=') {
+	
+	/* if it is not a key=value pair, it must be a key */
+	if( ch != '=' ) {
 		reply_single(tmp1, tmp2, reply);
 		goto fin;
 	}
-
+	
 	/* we have at least two parameters,  */
 	/* and the secoond ends with '='  */
 	/* lets reset and try to parse  */
@@ -405,59 +412,31 @@ int
 main(int argc, char *argv[])
 {
 	int sfd;
-	struct sockaddr_storage peer_addr;
-	struct addrinfo hints;
+	struct sockaddr_storage peer_addr;	
 	ssize_t nread;
 	socklen_t peer_addr_len = sizeof(struct sockaddr_storage);
 	int ret = EXIT_SUCCESS;
 	signal(SIGINT, sigint_handler);
-
-#if 0
-	m_init();
-	conststr_init();
-	m_register_printf();
-	trace_level=1;
-	int buf = s_printf(0,0, "t1 a=7" );
-	msg_client(1,"",buf);
-	s_printf(buf,0, "t1 a=7 b=9" );
-	msg_client(1,"",buf);
-	s_printf(buf,0, "t1 *" );
-	msg_client(1,"",buf);
-	cleanup();
-	conststr_free();
-	m_destruct();
-	
-	exit(0);
-#endif
-
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s port\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
-
 	m_init();
 	conststr_init();
 	m_register_printf();
 	trace_level = 1;
-	load_database();
-	
+	load_database();	
 	int reply = m_create(50, 1);
 	int hbuf = m_create(BUF_SIZE, 1);
-
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-	hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-	hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-	hints.ai_protocol = 0;          /* Any protocol */
-	hints.ai_canonname = NULL;
-	hints.ai_addr = NULL;
-	hints.ai_next = NULL;
-
+	struct addrinfo hints = {
+		.ai_family = AF_UNSPEC,    /* Allow IPv4 or IPv6 */
+		.ai_socktype = SOCK_DGRAM, /* Datagram socket */
+		.ai_flags = AI_PASSIVE    /* For wildcard IP address */
+	};
 	if ((sfd = bind_to(argv[1], &hints)) < 0) {
 		ret = EXIT_FAILURE;
 		goto cleanup;
 	};
-
 	/* Read datagrams and reply to them back to sender */
 	for (; !CTRL_C;) {
 		if (wait_for_udp(sfd) != 0
@@ -476,7 +455,6 @@ main(int argc, char *argv[])
 		}
 	}
 	close(sfd);
-
 cleanup:
 	m_free(hbuf);
 	m_free(reply);

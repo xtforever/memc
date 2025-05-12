@@ -962,7 +962,7 @@ conststr_stats(void)
 	int cnt = m_len(CONSTSTR_DATA);
 	TRACE(4, "Count: %d", cnt);
 	len = cnt * (sizeof(int) + sizeof(struct ls_st));
-	m_foreach(CONSTSTR_DATA, p, d) { TRACE(1, "%d %s\n",p,m_str(*d)); len += m_len(*d); }
+	m_foreach(CONSTSTR_DATA, p, d) { TRACE(1, "%d %s",p,m_str(*d)); len += m_len(*d); }
 	TRACE(4, "Memory: %d", len);
 }
 
