@@ -145,20 +145,18 @@ store_keys(int keys, int k, int v)
 int
 reply_to(int host, int buf)
 {
-	TRACE(1, "");
+	TRACE(1, "lookup host %M", host );
 	int p = m_bsearch_int(HOSTDB, s_mstr(host));
 	if (p < 0) {
-		s_strcpy_c(buf, "<EMPTY>\n");
+		s_printf(buf,0, "ERR\nNo Keys found for %M\n", host );
 		return buf;
 	}
-	int cnt = 0;
 	struct host_db *hh = mls(HOSTDB, p);
-	struct keystore *key;
-	m_foreach(hh->keystore, p, key)
+	struct keystore *ks;
+	s_printf(buf, 0, "OK\n" );
+	m_foreach(hh->keystore, p, ks)
 	{
-		s_printf(buf, cnt,  "\"%s\"  \"%s\"\n", m_str(key->key),
-		         m_str(key->val));
-		cnt = m_len(buf) - 1;
+		s_printf(buf, -1,  "%M=%M\n", ks->key, ks->val );
 	}
 	return buf;
 }
@@ -169,18 +167,17 @@ reply_single(int host, int key, int buf)
 	TRACE(1, "");
 	int p = m_bsearch_int(HOSTDB, s_mstr(host));
 	if (p < 0) {
-		s_strcpy_c(buf, "<EMPTY>\n");
+		s_printf(buf,0, "ERR\nNo Keys found for %M\n", host );
 		return buf;
 	}
 	struct host_db *hh = mls(HOSTDB, p);
 	p = m_bsearch_int(hh->keystore, s_mstr(key));
-	printf("'%M'\n",key); 
 	if (p < 0) {
-		s_strcpy_c(buf, "<KEY NOT FOUND>\n");
+		s_printf(buf,0, "ERR\nKEY %M NOT FOUND\n", key);
 		return buf;
 	}
-	struct keystore *keys = mls(hh->keystore, p);
-	s_printf(buf, 0, "\"%s\"  \"%s\"\n", m_str(keys->key), m_str(keys->val));
+	struct keystore *ks = mls(hh->keystore, p);
+	s_printf(buf, 0, "OK\n%M\n", ks->val );
 	return buf;
 }
 
@@ -232,9 +229,10 @@ int merge_database(int fn)
 		if( r != 4 ) continue;
 		int keys = get_host( s_cstr(id) );
 		int cs = s_cstr(code); /* store key as constant */
-		printf("MERGE KEY '%s' Id=%d\n", code, cs );
+		TRACE(1,"MERGE KEY '%s' Id=%d", code, cs );
 		struct keystore *ent = m_blookup_int_p(keys, cs, NULL, NULL);
 		if( number > ent->stamp ) {
+			TRACE(1,"UPDATE %M", cs );
 			ent->stamp = number;
 			m_free(ent->val);
 			ent->val = s_strdup_c(quoted_value);
@@ -244,7 +242,7 @@ int merge_database(int fn)
 		free(quoted_value);
 	}
 	fclose(fp);
-	conststr_stats();
+	//conststr_stats();
 	return 0;
 }
 
@@ -256,6 +254,11 @@ int load_database(void)
 }
 
 
+// syntax:
+// host key=value
+// host *
+// host key
+//
 static int
 msg_client(int buf, int reply)
 {
@@ -267,10 +270,11 @@ msg_client(int buf, int reply)
 	/* get first param */
 	int pos = 0;
 	p_word(tmp1, buf, &pos, " \t\n\r");
+	
 	int p = pos;
 	if (m_len(tmp1) < 2) {
 		WARN("error parsing hostname");
-		s_strcpy_c(reply, "<SYNTAX ERROR>\n");
+		s_strcpy_c(reply, "ERR\nSYNTAX ERROR: hostname not found\n");
 		goto fin;
 	}
 
@@ -283,11 +287,9 @@ msg_client(int buf, int reply)
 	if( s_strcmp_c(tmp1,0,":LOAD") == 0 ) {
 		p_word(tmp2,buf,&pos, "\n" );
 		if(! merge_database(tmp2) ) goto fin_ok;
-		s_printf(reply,0,"<ERROR LOADING '%M'>\n",tmp2 );
+		s_printf(reply,0,"ERR\ncan not load '%M'\n",tmp2 );
 		goto fin;
 	}
-
-
 	
 	/* opt. get second param */
 	int ch = p_word(tmp2, buf, &pos, " \t\n\r=*");
@@ -331,7 +333,7 @@ msg_client(int buf, int reply)
 	m_free(v);
 
 fin_ok:
-	s_strcpy_c(reply, "<OK>\n");
+	s_strcpy_c(reply, "OK\n");
 
 fin:
 	m_free(tmp1);
