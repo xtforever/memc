@@ -26,23 +26,22 @@ static const char *Version =
 //
 // 2007-12-25 nomux: m_free(): ignore h==0 instead of abort with error
 //
-// 2011-02-04 nomux: m_ins: added n==0 -> error, keine erlaubnis 0 elemente
-// einzufÃ¼gen
+// 2011-02-04 nomux: m_ins: added n==0 -> error, keine erlaubnis 0 elemente einzufuegen
 //
 // 2012-03-09 nomux: deb_err: removed "debi.me=0". es sollte verhindert werden
-// das nach einem internen fehler noch ueberflÃ¼ssige melden erscheinen. dies
+// das nach einem internen fehler noch ueberfluessige meldungen erscheinen. dies
 // funktionierte ganz und gar nicht. stattdessen wurde die
-// fehler-rÃ¼ckverfolgung abgeschaltet.
+// fehler-rueckverfolgung abgeschaltet.
 //
 // 2012-03-12 nomux: m_setlen verwendet jetzt lst_resize um neuen speicher zu
 // allokieren
-
 // 2014-02-16 lst_remove remove multiple items bug, m_init, _m_init do not
-// terminate prog 2014-06-30 lst_resize, lst_create - fill allocated memory with
-// 0 2014-07-09 m_utf8getchar - benutzt jetzt neue UTF8CHAR 2014-07-09 void
-// m_qsort( int list, int(*compar)(const void *, const void *)) 2016-11-27
-// mstr_to_long 2018-12-28 m_write, lst_write
-//            lst_write bug: if m_len(m) and count=0 -> error
+// terminate prog
+// 2014-06-30 lst_resize, lst_create - fill allocated memory with 0
+// 2014-07-09 m_utf8getchar - benutzt jetzt neue UTF8CHAR
+// 2014-07-09 void m_qsort( int list, int(*compar)(const void *, const void *))
+// 2016-11-27 mstr_to_long
+// 2018-12-28 m_write, lst_write. lst_write bug: if m_len(m) and count=0 -> error
 // 2019-03-13 BUG: buffer overflow in deb_xxx better use vsnprintf :-)
 // 2021-05-11 m_next do nothing if list==0
 // 2021-11-22 BUG: lst_resize - fill new memory with zero
@@ -1375,7 +1374,7 @@ int m_lookup_obj(int m, void *obj, int size) {
 // falls key gefunden gebe den treffer zurück
 // ansonsten füge key hinzu und gebe key zurück
 // m - marray [ int ]
-// key - marray [ char ], type: ZMSTRING zero-terminated string in marray
+// key - marray [ char ], type: mstr 
 // returns: entweder wird (key) zurückgegeben, dann wurde key hinzugefügt,
 // oder es wird ein wert !=key zurückgegeben, dann existiert der schlüssel
 // schon und der rückgabewert zeigt auf den existieren schlüssel.
@@ -1384,7 +1383,7 @@ int m_lookup(int m, int key) {
   int p, *d;
 
   if (m_len(key) == 0)
-    ERR("Key of zero size");
+    ERR("Key size is zero");
   m_foreach(m, p, d) if (m_cmp(*d, key) == 0) return *d;
 
   m_put(m, &key);
@@ -2008,6 +2007,7 @@ int m_binsert(int buf, const void *data,
   return cur;
 }
 
+// scan buf from p to end for character ch, return found postion or -1 if not found
 int s_index(int buf, int p, int ch) {
   unsigned char *d;
   while (p < m_len(buf)) {
