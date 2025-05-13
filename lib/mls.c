@@ -743,8 +743,8 @@ void exit_error() {
   perr("\n"
        "POST MORTEM ANALYSER STARTED\n"
        "****************************\n"
-       "ERROR in funtion: '%s'. Called by '%s:%d' in '%s'",
-       debi.me, debi.fun, debi.ln, debi.fn);
+       "ERROR in funtion: '%s()'. Called in '%s:%d' by '%s()'",
+       debi.me, debi.fn, debi.ln, debi.fun);
 
   if (!ML) {
     perr("m_init not called");
