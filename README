@@ -1,23 +1,71 @@
-
-
 An easier way to write c code.
 
 TL;DR: examples/04---advanced-strings/adv-string.c: demonstrate_string_concatenation()
 
-This approach aims to minimize the direct use of pointers by replacing direct memory access with helper functions that use handles - simple integer values - to reference memory blocks. Each handle points to a structure that describes a specific memory block, enabling a safer and more controlled way of accessing and manipulating memory.
+This approach aims to minimize the direct use of pointers by replacing
+direct memory access with helper functions that use handles - simple
+integer values - to reference memory blocks. Each handle references a
+structure that describes a specific memory block. The structure
+describes the element width, number of stored elements and buffer
+capacitiy.  By maintaining the buffer size and the element count as
+separate fields, appending new elements becomes an efficient
+operation. In my experience, this design proves to be both practical
+and frequently utilized.  The library provides the m_put(M, ptr)
+function to add elements to any array type, automatically resizing as
+needed while preserving the handle.
 
-To facilitate debugging, mls.h includes a suite of macros. A brief demonstration of the error-handling mechanisms is provided in examples/03---error-handling.
+To facilitate debugging, mls.h includes a
+suite of macros. A brief demonstration of the error-handling
+mechanisms is provided in examples/03---error-handling.
 
-One of the key advantages of this approach is the use of integer handles as references to arbitrary arrays. This abstraction allows any data structure to be represented as an array of integers, providing a  flexible framework for handling even complex data structures. 
+One of the key advantages of this approach is the use of typeless
+integer handles as references to arbitrary arrays. This abstraction
+allows any data structure to be represented and manipulated through a
+uniform interface—typically as arrays of integers—enabling a flexible
+and generalized framework for managing even complex data layouts.
 
-The m_put(M, ptr) function is one of the most often used tools in this implementation. 
-It can be used for any array type, automatically resizing as needed while preserving the handle, 
+Consider a typical scenario where you define a structure, e.g., struct
+foo { ... }, and use a typed pointer like struct foo *foo_ptr
+throughout your codebase. In more complex cases, you might work with
+arrays, such as struct foo foodata[100]. This introduces additional
+concerns: you need to manage the size of the array, ensure correct
+pointer usage, and write code that is tightly coupled to the
+structure’s type.
 
-Since the handle remains constant until the array is explicitly freed, it can be safely used throughout the program without needing re-assignment. This consistency also allows functions to accept arrays as arguments more flexibly. For example, the well known 'ssize_t getline(char **lineptr, size_t *n, FILE *stream)' function, could instead be adapted to use a handle, as in 'int getline(int my_array, FILE *stream)'. 
- 
-An additional advantage is that handles are always positive integers. This allows functions to return the handle itself when successful or, if needed, a negative value to indicate an error code, enabling quick and easy error handling.
+By contrast, using handles allows you to pass simple integers that
+refer to memory blocks or positions within those blocks, abstracting
+away the need for direct type-dependent pointer arithmetic. This
+decouples your logic from specific data types and significantly
+improves safety: all memory access through handles can be
+bounds-checked, preventing out-of-bounds errors and reducing the
+likelihood of undefined behavior.
+
+In summary, typeless handles promote more modular, type-agnostic, and safer code.
+
+Since the handle remains constant until the array is explicitly freed,
+it can be safely used throughout the program without needing
+re-assignment. This consistency also allows functions to accept arrays
+as arguments more flexibly. For example, the well known 'ssize_t
+getline(char **lineptr, size_t *n, FILE *stream)' function, could
+instead be adapted to use a handle, as in 'int getline(int my_array,
+FILE *stream)'. 
+
+An additional advantage is that handles are always positive
+integers. This allows functions to return the handle itself when
+successful or, if needed, a negative value to indicate an error code,
+enabling quick and easy error handling.
 
 The source code for memory management functions is located in lib/mls.c.
+
+Notes: the mls.c source code has been refined over the past 20 years
+and is considered stable and safe for use.  The m_tool.c file contains
+a collection of handy utility functions, originally written to support
+rapid development—similar to how one might use a scripting language
+for quick tasks.
+
+That said, the project would benefit from more consistent and
+descriptive function naming. It could also be significantly improved
+by expanding its support for database and file handling operations.
 
 jens harms, 2024-11-06
 au1064 at gmail dot com
