@@ -905,9 +905,9 @@ conststr_lookup(int s)
 int
 conststr_lookup_c(const char *s)
 {
-	int n=strlen(s);
+	int n=strlen(s)+1;
 	int v = m_create(n,1);
-	m_write(v,0,s,n+1);
+	m_write(v,0,s,n);
 	int ret = conststr_lookup(v);
 	m_free(v);
 	return ret;
