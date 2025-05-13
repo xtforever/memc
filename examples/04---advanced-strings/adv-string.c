@@ -37,18 +37,25 @@ demonstrate_string_concatenation()
 	s1 = s_app(0, "Hello ", "World, ", NULL);
 	s_app(s1, "there ", "is ", "another ", "World ", "to ", "visit", NULL);
 	printf("String s1: '%M'\n", s1);
-
 	//          using s_printf and custom specifier to concat a string
 	s2 = s_printf(0, 0, "You said: <%M>", s1);
 	printf("String s2: '%M'\n", s2);
-
 	//          using m_slice to copy first 6 chars to new string
 	s3 = m_slice(0, 0, s1, 0, 5);
 	//          using m_slice to append a part of string
-	m_slice(s3, m_len(s3), s2, 16, 20);
+	m_slice(s3, -1       , s2, 16, 20);
 	m_putc(s3, 0);
 	printf("String s3: '%M'\n", s3);
-
+	//          using m_slice to append to a string
+	s_printf(s1, 0, "m_slice can be used " );
+	s_printf(s2, 0, "to append strings\n\n" );
+	/* Instead of using the end of s1 (-1), we target the position of its null terminator (-2) */
+	m_slice(s1, -2, s2, 0, -1);
+	printf("String s1: '%M'", s1);	
+	//          using s_printf to concat
+	s_printf(s1, 0, "s_printf can be used " );
+	s_printf(s1, -1, "to append strings\n\n" );
+	printf("String s1: '%M'", s1);	
 	m_free(s1);
 	m_free(s2);
 	m_free(s3);

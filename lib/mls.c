@@ -536,10 +536,10 @@ int m_bufsize(int m) {
  * Inserts 'n' elements at position 'p' in the array pointed to by 'm'.
  * If 'p' is negative or 'n' is non-positive, an error is raised.
  *
- * @param m Pointer to the array where elements are to be inserted.
+ * @param m Handle of the array where elements are to be inserted.
  * @param p The position at which to insert the elements.
  * @param n The number of elements to insert.
- * @return The start position 'p' after insertion.
+ * @return The first free element position 'p' after insertion.
  *
  * @note This function assumes 'm' points to a valid array.
  * @note The position 'p' should be within the bounds of the array.
