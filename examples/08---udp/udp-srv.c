@@ -3,6 +3,8 @@
  */
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
+const char *Version = "udp-srv - mls example project - " COMPTAG;
+
 
 #include "m_tool.h"
 #include "mls.h"
@@ -142,17 +144,17 @@ reply_to(int host, int reply)
 	TRACE(1, "lookup host %M", host );
 	int p = m_bsearch_int(HOSTDB, s_mstr(host));
 	if (p < 0) {
-		s_printf(buf,0, "ERR\nNo Keys found for %M\n", host );
-		return buf;
+		s_printf(reply,0, "ERR\nNo Keys found for %M\n", host );
+		return ;
 	}
 	struct host_db *hh = mls(HOSTDB, p);
 	struct keystore *ks;
-	s_printf(buf, 0, "OK\n" );
+	s_printf(reply, 0, "OK\n" );
 	m_foreach(hh->keystore, p, ks)
 	{
-		s_printf(buf, -1,  "%M=%M\n", ks->key, ks->val );
+		s_printf(reply, -1,  "%M=%M\n", ks->key, ks->val );
 	}
-	return buf;
+	return;
 }
 
 int
@@ -411,7 +413,7 @@ main(int argc, char *argv[])
 	int ret = EXIT_SUCCESS;
 	signal(SIGINT, sigint_handler);
 	if (argc != 2) {
-		fprintf(stderr, "Usage: %s port\n", argv[0]);
+		fprintf(stderr, "%s\nUsage: %s port\n", Version, argv[0]);
 		exit(EXIT_FAILURE);
 	}
 	m_init();
