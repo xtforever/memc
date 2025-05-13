@@ -4,8 +4,6 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
 
-/* lookup_obj = create(v,ctx) */
-
 #include "m_tool.h"
 #include "mls.h"
 #include <netdb.h>
@@ -17,41 +15,41 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <time.h>
+
+const char *default_db = "db.dat";
 
 volatile sig_atomic_t CTRL_C = 0;
 void
 sigint_handler(int signum)
 {
 	CTRL_C = 1;
+	WARN("sigint received");
 }
 
 /*
+  example:
+  start server at port 2222, autoload db.dat if exists
+     udp-srv 2222
+  send message to server
+     udp-send localhost 2222 "mysrv ip1=10.0.0.1"
+     udp-send localhost 2222 "mysrv ip2=10.0.0.2"
+  query server
+      udp-send localhost 2222 "mysrv ip1"
+      udp-send localhost 2222 "mysrv *"           
+  save database to disk
+     udp-send localhost 2222 ":SAVE t1.dat"
+  load database (changes will be merged, using timestamp)
+     udp-send localhost 2222 ":LOAD t1.dat"
+     
 1) Store values in group Hostname:
    recv:  hostname {key=value }*
-          value= 'eqstring' | "eqqstring" | esimplestring
-          esimplestring = [^'" ]*  with escaped chars
-          eqstring  =  [^']* with escaped chars
-          eqqstring =  [^"]* with escaped chars
    max: 1470 BYTES / Packet
 
-2) retrive/delete values
+2) retrive values
    recv:   hostname *
    send:   {key='escaped-string' SPACE}* NEWLINE <terminates session>
    max: 1470 BYTES / Packet
-
-
-
-
-   parser:
-
-   w1 = word until not "="
-
-   w2 = c = next-char
-   case ':  scan-with-esc-until-next-quote
-   case ":  scan-with-esc-until-next-doublequote
-   default: scan-with-esc-until-next-whitespace
-   store(hostname, w1, w2 )
-   until no more characters
 */
 
 /*
@@ -61,6 +59,7 @@ sigint_handler(int signum)
 
 /* copy characters from buf[p..] to out until one of *delim is found
    returns: last parsed character
+   leading spaces are ignored
    out will be a zero terminated string
    parsed word will be appended to out
 */
@@ -96,6 +95,7 @@ p_word(int out, int buf, int *p, char *delim)
 
 struct keystore {
 	int key, val;
+	time_t stamp;
 };
 
 struct host_db {
@@ -110,7 +110,7 @@ new_host(void *ent, void *unused)
 {
 	(void)unused;
 	struct host_db *h = ent;
-	h->keystore = m_create(2, sizeof(struct host_db));
+	h->keystore = m_create(2, sizeof(struct keystore));
 }
 
 /* using generic lookup and host entry create funtion */
@@ -132,27 +132,47 @@ store_keys(int keys, int k, int v)
 	int cs = s_mstr(k); /* store key as constant */
 	struct keystore *ent = m_blookup_int_p(keys, cs, NULL, NULL);
 	ent->val = m_slice(ent->val, 0, v, 0, -1); /* overwrite or create val */
+	ent->stamp = time(NULL);
 	return 0;
 }
 
 void
 reply_to(int host, int reply)
 {
+	TRACE(1, "lookup host %M", host );
+	int p = m_bsearch_int(HOSTDB, s_mstr(host));
+	if (p < 0) {
+		s_printf(buf,0, "ERR\nNo Keys found for %M\n", host );
+		return buf;
+	}
+	struct host_db *hh = mls(HOSTDB, p);
+	struct keystore *ks;
+	s_printf(buf, 0, "OK\n" );
+	m_foreach(hh->keystore, p, ks)
+	{
+		s_printf(buf, -1,  "%M=%M\n", ks->key, ks->val );
+	}
+	return buf;
+}
+
+int
+reply_single(int host, int key, int buf)
+{
 	TRACE(1, "");
 	int p = m_bsearch_int(HOSTDB, s_mstr(host));
 	if (p < 0) {
-		m_puti(reply,s_strdup_c("<OK>\n"));
-		return;
+		s_printf(buf,0, "ERR\nNo Keys found for %M\n", host );
+		return buf;
 	}
 	struct host_db *hh = mls(HOSTDB, p);
-	struct keystore *key;
-	m_foreach(hh->keystore, p, key)
-	{
-		int str = s_printf(0,0, "%s=\"%s\"\n", m_str(key->key),
-				   m_str(key->val));
-		m_puti(reply,str);
+	p = m_bsearch_int(hh->keystore, s_mstr(key));
+	if (p < 0) {
+		s_printf(buf,0, "ERR\nKEY %M NOT FOUND\n", key);
+		return buf;
 	}
-	return;
+	struct keystore *ks = mls(hh->keystore, p);
+	s_printf(buf, 0, "OK\n%M\n", ks->val );
+	return buf;
 }
 
 void
@@ -170,38 +190,126 @@ cleanup(void)
 	HOSTDB = 0;
 }
 
+void save_database( int fn  )
+{
+	const char *name = s_isempty(fn) ? default_db : m_str(fn);	
+	FILE *fp=fopen( name, "wb" );
+	if(!fp) ERR("could not create %s", name );
+	int p1, p2;
+	struct keystore *key;
+	struct host_db *hh;
+	m_foreach(HOSTDB, p1, hh) {
+		m_foreach(hh->keystore, p2, key) {
+			fprintf(fp,"%M %ld %M \"%M\"\n",hh->host, key->stamp, key->key,key->val ); 
+		}
+	}
+	fclose(fp);
+}
+
+int merge_database(int fn)
+{
+	char *id = NULL;
+	long long number;
+	char *code = NULL;
+	char *quoted_value = NULL;
+	FILE *fp=fopen( m_str(fn), "rb" );
+	if(!fp) {
+		WARN("could not read %M", fn );
+		return -1;
+	}
+	while( ! feof(fp) ) {
+		int r = fscanf(fp, "%ms %lld %ms \"%m[^\"]\"",
+			       &id, &number, &code, &quoted_value);
+		if( r != 4 ) continue;
+		int keys = get_host( s_cstr(id) );
+		int cs = s_cstr(code); /* store key as constant */
+		TRACE(1,"MERGE KEY '%s' Id=%d", code, cs );
+		struct keystore *ent = m_blookup_int_p(keys, cs, NULL, NULL);
+		if( number > ent->stamp ) {
+			TRACE(1,"UPDATE %M", cs );
+			ent->stamp = number;
+			m_free(ent->val);
+			ent->val = s_strdup_c(quoted_value);
+		}		
+		free(id);
+		free(code);
+		free(quoted_value);
+	}
+	fclose(fp);
+	//conststr_stats();
+	return 0;
+}
+
+int load_database(void)
+{
+	cleanup();
+	HOSTDB = m_create(10, sizeof(struct host_db));
+	return merge_database( s_cstr( default_db ) );
+}
+
+
+// syntax:
+// host key=value
+// host *
+// host key
+// :CMD param
 static int
 msg_client(int buf, int reply)
 {
+	int pos = 0, p;
+	int ch;
 	int ret = 0;
 	int tmp1 = m_create(100, 1);
 	int tmp2 = m_create(100, 1);
 
 	/* get first param */
-	int pos = 0;
-	p_word(tmp1, buf, &pos, " \t\n\r");
-	int p = pos;
+	ch = p_word(tmp1, buf, &pos, " ");
 	if (m_len(tmp1) < 2) {
 		WARN("error parsing hostname");
+		s_strcpy_c(reply, "ERR\nSYNTAX ERROR: missing hostname\n");
+		goto fin;
+	}
+	
+	p=pos; // save parser position for key=value parser
+	ch = p_word(tmp2, buf, &pos, " *=\n\r");
+
+	/* if it is a command, execute function */
+	if( CHAR(tmp1,0) == ':' ) {
+		if( s_strcmp_c(tmp1,0,":SAVE") == 0 ) {
+			save_database( tmp2 );
+			goto fin_ok;
+		}
+	
+		if( s_strcmp_c(tmp1,0,":LOAD") == 0 ) {
+			if(! merge_database(tmp2) ) goto fin_ok;
+			s_printf(reply,0,"ERR\ncan not load '%M'\n",tmp2 );
+			goto fin;
+		}
+
+		s_printf(reply,0,"ERR\nunkown command '%M'\n",tmp1 );
 		goto fin;
 	}
 
-	/* opt. get second param */
-	int ch = p_word(tmp2, buf, &pos, " \t\n\r=*");
-	if (m_len(tmp2) < 2) {
-		if (ch == '*')
+	/* no argument, either '*' or error */
+	if( m_len(tmp2) < 2 ) {
+		if( ch == '*' ) {
 			reply_to(tmp1, reply);
-		else
-			WARN("error parsing 2nd parameter");
+		} else {
+			s_strcpy_c(reply, "ERR\nSYNTAX ERROR: expected key\n");
+		}
 		goto fin;
 	}
-	if (ch != '=') {
-		WARN("error 2nd parameter not k=v");
+	
+	/* if it is not a key=value pair, it must be a key */
+	if( ch != '=' ) {
+		reply_single(tmp1, tmp2, reply);
 		goto fin;
 	}
-
-	/* we have at least two parameters, lets reset and try to parse
-	 * key=value pairs */
+	
+	/* we have at least two parameters,  */
+	/* and the secoond ends with '='  */
+	/* lets reset and try to parse  */
+	/* key=value pairs */
 	/* start at p */
 	int keys = 0;
 	int k, v;
@@ -223,7 +331,10 @@ msg_client(int buf, int reply)
 	}
 	m_free(k);
 	m_free(v);
-	m_puti(reply,s_strdup_c("<OK>\n"));
+
+fin_ok:
+	s_strcpy_c(reply, "OK\n");
+
 fin:
 	m_free(tmp1);
 	m_free(tmp2);
@@ -293,60 +404,46 @@ bind_to(const char *hostname, struct addrinfo *hints)
 int
 main(int argc, char *argv[])
 {
-	int ret = EXIT_SUCCESS;
 	int sfd;
+	struct sockaddr_storage peer_addr;	
 	ssize_t nread;
-	struct sockaddr_storage peer_addr;
-	socklen_t peer_addr_len = sizeof(peer_addr);
-
+	socklen_t peer_addr_len = sizeof(struct sockaddr_storage);
+	int ret = EXIT_SUCCESS;
+	signal(SIGINT, sigint_handler);
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s port\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
-	
-	signal(SIGINT, sigint_handler);
 	m_init();
 	conststr_init();
 	m_register_printf();
 	trace_level = 1;
-	int reply = m_create(50, sizeof(int));
+	load_database();	
+	int reply = m_create(50, 1);
 	int hbuf = m_create(BUF_SIZE, 1);
 	struct addrinfo hints = {
 		.ai_family = AF_UNSPEC,    /* Allow IPv4 or IPv6 */
 		.ai_socktype = SOCK_DGRAM, /* Datagram socket */
 		.ai_flags = AI_PASSIVE,    /* For wildcard IP address */
-		.ai_protocol = 0,          /* Any protocol */
 	};
 
 	if ((sfd = bind_to(argv[1], &hints)) < 0) {
 		ret = EXIT_FAILURE;
 		goto cleanup;
 	};
-
-	/* Read datagrams and reply to sender */
+	/* Read datagrams and reply to them back to sender */
 	for (; !CTRL_C;) {
-		if( wait_for_udp(sfd) ) continue;
+		if ( wait_for_udp(sfd) ) continue;
 		nread = recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
 				 (struct sockaddr *)&peer_addr,
 				 &peer_addr_len);
-		if( nread <=0 ) continue;
+		if( nread <= 0 ) continue;
 		m_setlen(hbuf, nread);
 		msg_client(hbuf, reply);
-		/* send reply, using peer_addr */
-		m_clear(hbuf);
-		m_puti(reply,s_strdup_c("\n"));
-		int p=0,lns = m_len(reply);		
-		int d=INT(reply,0);
-		while( p<lns ) {
-			p++;
-			m_slice( hbuf, m_len(hbuf), d, 0, -2 );
-			// kein weiterer oder der naechste passt nicht dann absenden
-			if( p >= lns || (m_len(d=INT(reply,p))+m_len(hbuf)>=BUF_SIZE))  {
-				int err = sendto(sfd, m_buf(hbuf), m_len(hbuf), 0,
-				       (struct sockaddr *)&peer_addr, peer_addr_len);
-				if( err < 0 ) perror("error sending reply");
-				m_clear(hbuf);
-			}
+		if (m_len(reply) > 1 ) {
+			s_puts(reply);
+			sendto(sfd, m_buf(reply), m_len(reply), 0,
+			       (struct sockaddr *)&peer_addr, peer_addr_len);
 		}
 		m_clear_list(reply);
 	}
@@ -354,7 +451,7 @@ main(int argc, char *argv[])
 
 cleanup:
 	m_free(hbuf);
-	m_free_list(reply);
+	m_free(reply);
 	cleanup();
 	conststr_free();
 	m_destruct();
