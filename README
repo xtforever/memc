@@ -1,4 +1,4 @@
-An easier way to write c code.
+An easier way to write c code with the mls library.
 
 TL;DR: examples/04---advanced-strings/adv-string.c: demonstrate_string_concatenation()
 
@@ -13,10 +13,6 @@ operation. In my experience, this design proves to be both practical
 and frequently utilized.  The library provides the m_put(M, ptr)
 function to add elements to any array type, automatically resizing as
 needed while preserving the handle.
-
-To facilitate debugging, mls.h includes a
-suite of macros. A brief demonstration of the error-handling
-mechanisms is provided in examples/03---error-handling.
 
 One of the key advantages of this approach is the use of typeless
 integer handles as references to arbitrary arrays. This abstraction
@@ -55,13 +51,24 @@ integers. This allows functions to return the handle itself when
 successful or, if needed, a negative value to indicate an error code,
 enabling quick and easy error handling.
 
+To aid in debugging, mls.h provides a suite of macros designed to
+simplify error tracking. A brief demonstration of the error-handling
+mechanisms can be found in examples/03---error-handling.
+For commonly used functions, macros are available that automatically
+capture the source file, line number, and function name from which an
+mls function is invoked. This debug information is only active when
+MLS_DEBUG is defined.
+If the program terminates unexpectedly, the last called mls function
+and the exact location from which it was invoked are displayed, making
+it easier to trace and diagnose the issue.
+
 The source code for memory management functions is located in lib/mls.c.
 
 Notes: the mls.c source code has been refined over the past 20 years
 and is considered stable and safe for use.  The m_tool.c file contains
 a collection of handy utility functions, originally written to support
 rapid development—similar to how one might use a scripting language
-for quick tasks.
+for quick tasks but is not as thoroughly tested as 'mls.c'.
 
 That said, the project would benefit from more consistent and
 descriptive function naming. It could also be significantly improved
