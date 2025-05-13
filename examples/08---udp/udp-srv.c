@@ -4,8 +4,6 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wformat-extra-args"
 
-/* lookup_obj = create(v,ctx) */
-
 #include "m_tool.h"
 #include "mls.h"
 #include <netdb.h>
@@ -32,30 +30,12 @@ sigint_handler(int signum)
 /*
 1) Store values in group Hostname:
    recv:  hostname {key=value }*
-          value= 'eqstring' | "eqqstring" | esimplestring
-          esimplestring = [^'" ]*  with escaped chars
-          eqstring  =  [^']* with escaped chars
-          eqqstring =  [^"]* with escaped chars
    max: 1470 BYTES / Packet
 
 2) retrive/delete values
    recv:   hostname *
    send:   {key='escaped-string' SPACE}* NEWLINE <terminates session>
    max: 1470 BYTES / Packet
-
-
-
-
-   parser:
-
-   w1 = word until not "="
-
-   w2 = c = next-char
-   case ':  scan-with-esc-until-next-quote
-   case ":  scan-with-esc-until-next-doublequote
-   default: scan-with-esc-until-next-whitespace
-   store(hostname, w1, w2 )
-   until no more characters
 */
 
 /*
@@ -439,16 +419,14 @@ main(int argc, char *argv[])
 	};
 	/* Read datagrams and reply to them back to sender */
 	for (; !CTRL_C;) {
-		if (wait_for_udp(sfd) != 0
-		    || (nread = recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
-		                         (struct sockaddr *)&peer_addr,
-		                         &peer_addr_len))
-		           <= 0) {
-			continue;
-		}
+		if ( wait_for_udp(sfd) ) continue;
+		nread = recvfrom(sfd, m_buf(hbuf), m_bufsize(hbuf), 0,
+				 (struct sockaddr *)&peer_addr,
+				 &peer_addr_len);
+		if( nread <= 0 ) continue;
 		m_setlen(hbuf, nread);
 		msg_client(hbuf, reply);
-		if (m_len(reply)) {
+		if (m_len(reply) > 1 ) {
 			s_puts(reply);
 			sendto(sfd, m_buf(reply), m_len(reply), 0,
 			       (struct sockaddr *)&peer_addr, peer_addr_len);
